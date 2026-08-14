@@ -3,7 +3,7 @@ import { Client } from '@/types/clients'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { HumanReadable } from '@/plugins/utils'
-import { i18n, locale } from '@/locales'
+import { dateLocale, i18n } from '@/locales'
 import { useDisplay } from 'vuetify'
 import { useUiMode } from '@/uiMode/useUiMode'
 import { useManualDrag, type ManualDropPosition } from '@/shared/dnd/manualDrag'
@@ -27,6 +27,7 @@ export const useClientsPage = () => {
   const enableTraffic = computed((): boolean => Data().enableTraffic)
 
   const onlineUsers = computed((): string[] => Data().onlines.user ?? [])
+  const onlineUserSet = computed(() => new Set(onlineUsers.value))
 
   const formatSize = (value: number) => HumanReadable.sizeFormat(value)
 
@@ -41,9 +42,7 @@ export const useClientsPage = () => {
   const selectedClientCount = clientSelection.selectedCount
   const toggleClientSelectMode = clientSelection.toggleActive
 
-  const isOnline = (cname: string) => computed(() => {
-    return Data().onlines?.user ? Data().onlines.user.includes(cname) : false
-  })
+  const isOnline = (cname: string) => onlineUserSet.value.has(cname)
 
   const inbounds = computed((): any[] => {
     return Data().inbounds?? []
@@ -56,7 +55,6 @@ export const useClientsPage = () => {
 
   const groups = computed((): string[] => {
     if (!clients.value) return []
-    if (filterSettings?.value.enabled) return Array.from(new Set(filterSettings.value.filteredClients?.map(c => c.group)))
     return Array.from(new Set(clients.value?.map(c => c.group)))
   })
 
@@ -69,7 +67,28 @@ export const useClientsPage = () => {
     state: '',
     group: '-',
     text: '',
-    filteredClients: <any[]>[]
+  })
+
+  const filteredClients = computed(() => {
+    let filtered = clients.value.slice()
+    if (filterSettings.value.group != '-') {
+      filtered = filtered.filter(client => client.group == filterSettings.value.group)
+    }
+    const text = filterSettings.value.text
+    if (text.length > 0) {
+      filtered = filtered.filter(client =>
+        String(client.name ?? '').includes(text) || String(client.desc ?? '').includes(text))
+    }
+    switch (filterSettings.value.state) {
+      case 'disable':
+        return filtered.filter(client => client.enable == false)
+      case 'expired':
+        return filtered.filter(client => client.expiry > 0 && client.expiry < Date.now() / 1000)
+      case 'online':
+        return filtered.filter(client => onlineUserSet.value.has(client.name))
+      default:
+        return filtered
+    }
   })
 
   const filterItems = [
@@ -92,11 +111,23 @@ export const useClientsPage = () => {
     { key: 'data-table-group', width: 0 },
   ]
 
-  const itemPerPage = ref(localStorage.getItem('items-per-page') || '10')
+  const readItemPerPage = (): string => {
+    try {
+      return localStorage.getItem('items-per-page') || '10'
+    } catch {
+      return '10'
+    }
+  }
+
+  const itemPerPage = ref(readItemPerPage())
 
   const setItemPerPage = (items: number) => {
     itemPerPage.value = items.toString()
-    localStorage.setItem('items-per-page', items.toString())
+    try {
+      localStorage.setItem('items-per-page', items.toString())
+    } catch {
+      // Keep the current page size in memory when storage is unavailable.
+    }
   }
 
   const modal = ref({
@@ -118,7 +149,7 @@ export const useClientsPage = () => {
   const delClient = async (id: number) => {
     const index = clients.value.findIndex(c => c.id === id)
     const success = await Data().save("clients", "del", id)
-    if (success) delOverlay.value[index] = false
+    if (success && index >= 0) delOverlay.value[index] = false
   }
 
   const delClientsBulk = async (ids: number[]) => {
@@ -263,26 +294,6 @@ export const useClientsPage = () => {
   }
 
   const doFilter = () => {
-    let filteredClients = clients.value.slice()
-    if (filterSettings.value.group != '-') {
-      filteredClients = filteredClients.filter(c => c.group == filterSettings.value.group)
-    }
-    if (filterSettings.value.text.length>0) {
-      const txt = filterSettings.value.text
-      filteredClients = filteredClients.filter(c => c.name.search(txt) != -1 || c.desc.search(txt) != -1)
-    }
-    switch (filterSettings.value.state) {
-      case "disable":
-        filteredClients = filteredClients.filter(c => c.enable == false)
-        break
-      case "expired":
-        filteredClients = filteredClients.filter(c => c.expiry > 0 && c.expiry < (Date.now()/1000) )
-        break
-      case "online":
-        filteredClients = filteredClients.filter(c => Data().onlines?.user?.includes(c.name))
-        break
-    }
-    filterSettings.value.filteredClients = filteredClients
     filterSettings.value.enabled = true
     filterMenu.value = false
   }
@@ -293,7 +304,6 @@ export const useClientsPage = () => {
       state: '',
       group: '-',
       text: '',
-      filteredClients: <any[]>[]
     }
     filterMenu.value = false
   }
@@ -353,6 +363,7 @@ export const useClientsPage = () => {
     filterItems,
     filterMenu,
     filterSettings,
+    filteredClients,
     groups,
     headers,
     inboundTags,
@@ -360,7 +371,7 @@ export const useClientsPage = () => {
     ipModal,
     isOnline,
     itemPerPage,
-    locale,
+    dateLocale,
     modal,
     mode,
     moveClient,

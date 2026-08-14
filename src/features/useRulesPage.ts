@@ -12,8 +12,8 @@ import {
 import { useConfirm } from '@/components/nexus/primitives/useConfirm'
 import { useUiMode } from '@/uiMode/useUiMode'
 import { isPresetManagedItem } from '@/components/presets/routingDnsPresets'
-import { useRulesConfig } from '@/shared/composables/rules/useRulesConfig'
-import { ruleActionsFor, ruleColumns, rulesetActionsFor, rulesetColumns } from '@/shared/composables/rules/tableConfig'
+import { useRulesConfig } from '@/features/rules/useRulesConfig'
+import { ruleActionsFor, ruleColumns, rulesetActionsFor, rulesetColumns } from '@/features/rules/tableConfig'
 
 export const useRulesPage = () => {
   const { confirm } = useConfirm()

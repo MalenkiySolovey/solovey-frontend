@@ -9,7 +9,7 @@ export const useRulesConfig = () => {
   const loading = ref(false)
 
   // Edit a LOCAL clone of the store config. A background reload (data.ts setNewData
-  // replaces Data().config wholesale, driven by the 10s poll / WS events) must not wipe
+  // replaces Data().config wholesale, driven by realtime/fallback refreshes) must not wipe
   // unsaved edits, so the form binds to this clone instead of the live store object.
   const cloneStoreConfig = (): Config => JSON.parse(JSON.stringify(Data().config ?? {}))
 
@@ -20,11 +20,8 @@ export const useRulesConfig = () => {
     oldConfig.value = cloneStoreConfig()
   }
 
-  onBeforeMount(async () => {
+  onBeforeMount(() => {
     loading.value = true
-    while (Data().lastLoad == 0) {
-      await new Promise(resolve => setTimeout(resolve, 100))
-    }
     resyncFromStore()
     loading.value = false
   })
@@ -121,9 +118,12 @@ export const useRulesConfig = () => {
 
   const saveConfig = async () => {
     loading.value = true
-    const success = await Data().save("config", "set", appConfig.value)
-    if (success) {
-      resyncFromStore()
+    try {
+      const success = await Data().save("config", "set", appConfig.value)
+      if (success) {
+        resyncFromStore()
+      }
+    } finally {
       loading.value = false
     }
   }

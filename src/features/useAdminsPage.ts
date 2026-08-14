@@ -1,8 +1,8 @@
-﻿import { i18n } from '@/locales'
+﻿import { dateLocale } from '@/locales'
 import { changeAdminPassword, createAdmin, loadAdmins, logoutAllAdmins as logoutEveryAdmin, removeAdmin, reorderAdmins } from '@/shared/composables/useAdminOperations'
 import { clearCSRFToken } from '@/store/csrf'
 import { Ref, computed, ref, inject, onMounted } from 'vue'
-import router from '@/router'
+import { navigateToLogin } from '@/plugins/loginNavigation'
 import { useUiMode } from '@/uiMode/useUiMode'
 import { useManualDrag, type ManualDropPosition } from '@/shared/dnd/manualDrag'
 import {
@@ -69,9 +69,8 @@ const adminListItemFromPayload = (u: any): AdminListItem => {
 }
 
 const dateFormatted = (dt: number): string => {
-  const locale = i18n.global.locale.value.replace('zh', 'zh-')
   const date = new Date(dt)
-  return date.toLocaleString(locale)
+  return date.toLocaleString(dateLocale())
 }
 
 const editModal = ref({
@@ -173,7 +172,7 @@ const logoutAllAdmins = async () => {
   logoutAllMenu.value = false
   if (response.success) {
     clearCSRFToken()
-    router.push('/login')
+    void navigateToLogin()
   }
 }
 

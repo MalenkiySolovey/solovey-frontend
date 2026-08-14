@@ -4,6 +4,7 @@ import { login as authenticate } from '@/shared/composables/useAuthOperations'
 import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useLocale, useTheme } from 'vuetify'
+import { readThemePreference, writeThemePreference } from '@/uiMode/theme'
 
 export const useLoginPage = () => {
   const theme = useTheme()
@@ -53,11 +54,10 @@ export const useLoginPage = () => {
   }
 
   const changeTheme = (value: string) => {
-    theme.change(value)
-    localStorage.setItem('theme', value)
+    theme.change(writeThemePreference(value))
   }
 
-  const isActiveTheme = (value: string) => (localStorage.getItem('theme') ?? 'system') === value
+  const isActiveTheme = (value: string) => readThemePreference() === value
 
   return {
     changeLocale,

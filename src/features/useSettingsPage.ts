@@ -5,7 +5,7 @@ import { Ref, computed, inject, onMounted, ref } from 'vue'
 import HttpUtils from '@/plugins/httputil'
 import { FindDiff } from '@/plugins/utils'
 import { normalizeSecretFields, stripSecretPlaceholders } from '@/components/settings/settingsSecretField'
-import { settingsPageDefaults, type SettingsMap } from '@/views/settingsPayload'
+import { settingsPageDefaults, type SettingsMap } from './settingsPayload'
 import { push } from 'notivue'
 import { useRoute } from 'vue-router'
 
@@ -32,17 +32,18 @@ export const useSettingsPage = () => {
   const settings = ref<SettingsMap>({ ...settingsPageDefaults })
 
   onMounted(async () => {
-    loading.value = true
     await loadData()
-    loading.value = false
   })
 
   const loadData = async () => {
     loading.value = true
-    const msg = await HttpUtils.get('api/settings')
-    loading.value = false
-    if (msg.success) {
-      setData(msg.obj)
+    try {
+      const msg = await HttpUtils.get('api/settings')
+      if (msg.success) {
+        setData(msg.obj)
+      }
+    } finally {
+      loading.value = false
     }
   }
 
@@ -54,42 +55,48 @@ export const useSettingsPage = () => {
 
   const save = async () => {
     loading.value = true
-    const payload = stripSecretPlaceholders(settings.value)
-    const restartRequired = subscriptionPathChanged()
-    const msg = await HttpUtils.post('api/save', { object: 'settings', action: 'set', data: JSON.stringify(payload) })
-    if (msg.success) {
-      push.success({
-        title: i18n.global.t('success'),
-        duration: 5000,
-        message: i18n.global.t('actions.set') + " " + i18n.global.t('pages.settings')
-      })
-      if (restartRequired) {
-        push.warning({
-          title: i18n.global.t('setting.restartRequired'),
-          duration: 8000,
-          message: i18n.global.t('setting.subPathRestartNotice')
+    try {
+      const payload = stripSecretPlaceholders(settings.value)
+      const restartRequired = subscriptionPathChanged()
+      const msg = await HttpUtils.post('api/save', { object: 'settings', action: 'set', data: JSON.stringify(payload) })
+      if (msg.success) {
+        push.success({
+          title: i18n.global.t('success'),
+          duration: 5000,
+          message: i18n.global.t('actions.set') + " " + i18n.global.t('pages.settings')
         })
+        if (restartRequired) {
+          push.warning({
+            title: i18n.global.t('setting.restartRequired'),
+            duration: 8000,
+            message: i18n.global.t('setting.subPathRestartNotice')
+          })
+        }
+        setData(msg.obj.settings)
       }
-      setData(msg.obj.settings)
+    } finally {
+      loading.value = false
     }
-    loading.value = false
   }
 
   const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
   const restartApp = async () => {
     loading.value = true
-    const msg = await HttpUtils.post('api/restartApp',{})
-    if (msg.success) {
-      let url = settings.value.webURI
-      if (url !== "") {
-        const isTLS = settings.value.webCertFile !== "" || settings.value.webKeyFile !== ""
-        url = buildURL(settings.value.webDomain,settings.value.webPort.toString(),isTLS, settings.value.webPath)
+    try {
+      const msg = await HttpUtils.post('api/restartApp',{})
+      if (msg.success) {
+        let url = settings.value.webURI
+        if (url !== "") {
+          const isTLS = settings.value.webCertFile !== "" || settings.value.webKeyFile !== ""
+          url = buildURL(settings.value.webDomain,settings.value.webPort.toString(),isTLS, settings.value.webPath)
+        }
+        await sleep(3000)
+        window.location.replace(url)
       }
-      await sleep(3000)
-      window.location.replace(url)
+    } finally {
+      loading.value = false
     }
-    loading.value = false
   }
 
   const buildURL = (host: string, port: string, isTLS: boolean, path: string) => {

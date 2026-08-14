@@ -1,7 +1,7 @@
 ﻿import Data from '@/store/modules/data'
 import { checkOutboundConnection } from '@/shared/composables/useOutboundChecks'
 import { Outbound } from '@/types/outbounds'
-import { computed, defineAsyncComponent, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useUiMode } from '@/uiMode/useUiMode'
 import { useI18n } from 'vue-i18n'
 import { useManualDrag, type ManualDropPosition } from '@/shared/dnd/manualDrag'
@@ -11,19 +11,12 @@ import { useAsyncTaskQueue } from '@/shared/composables/useAsyncTaskQueue'
 import { useFailoverStatus } from '@/shared/composables/useFailoverStatus'
 import { useConfirm } from '@/components/nexus/primitives/useConfirm'
 
-export const useOutboundsPage = (classicForm: any) => {
+export const useOutboundsPage = (classicForm: any, nexusForm: any, nexusList: any) => {
 const { mode } = useUiMode()
 const { t } = useI18n()
 const { confirm } = useConfirm()
 
-const OutboundsNexusList = defineAsyncComponent(
-  () => import('@/views/outbounds/OutboundsNexusList.vue'),
-)
-const OutboundDrawer = defineAsyncComponent(
-  () => import('@/components/nexus/drawers/OutboundDrawer.vue'),
-)
-
-const EntityForm = computed(() => (mode.value === 'nexus' ? OutboundDrawer : classicForm))
+const EntityForm = computed(() => (mode.value === 'nexus' ? nexusForm : classicForm))
 
 interface CheckResult {
   loading?: boolean
@@ -60,6 +53,15 @@ const checkAllOutbounds = async () => {
 
 const outbounds = computed((): Outbound[] => {
   return <Outbound[]> Data().outbounds
+})
+watch(outbounds, (rows) => {
+  const tags = new Set(rows.map(row => row.tag))
+  const retained = Object.fromEntries(
+    Object.entries(checkResults.value).filter(([tag]) => tags.has(tag)),
+  )
+  if (Object.keys(retained).length !== Object.keys(checkResults.value).length) {
+    checkResults.value = retained
+  }
 })
 const { statusByTag: failoverStatus } = useFailoverStatus(outbounds)
 const outboundsOrder = usePendingManualOrder<Outbound>('outbounds', outbounds)
@@ -203,7 +205,7 @@ const closeStats = () => {
   stats.value.visible = false
 }
   return {
-    mode, EntityForm, OutboundsNexusList,
+    mode, EntityForm, OutboundsNexusList: nexusList,
     checkResults, testingAll, checkOutbound, checkAllOutbounds, failoverStatus,
     outbounds, orderedOutbounds, outboundOrderDirty, outboundOrderSaving,
     outboundTags, onlines, enableTraffic,
