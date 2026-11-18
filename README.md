@@ -1,17 +1,17 @@
-# Solovey UI Frontend
+# Solovey Frontend
 
-One Vue/Vuetify application provides Classic and Nexus. Its component UI inputs are prepared and pinned explicitly; see [BUILD_INPUTS.md](BUILD_INPUTS.md).
+The canonical editable source of one Classic + Nexus Vue/Vuetify application. Product solovey-ui embeds an independently qualified distribution; it owns component source admission, packaging and signed Product releases. Backend v0.1.1 owns the HTTP/auth/DB contract. This repository provides no runtime server or updater authority.
 
-Inside the Product checkout, install dependencies once and use the Product adapter. It verifies component provenance and supplies the generated manifest SHA256 to each task:
+Node 25.9.0 and package-lock.json are unchanged from accepted M4A. Supply a Product-admitted solovey.frontend-build-inputs/v1 projection in .component-inputs and its separately trusted SOLOVEY_UI_INPUTS_SHA256, then run:
 
-```sh
-npm ci --prefix frontend
-node scripts/frontend.mjs dev
-node scripts/frontend.mjs typecheck
-node scripts/frontend.mjs test
-node scripts/frontend.mjs build
-```
+~~~sh
+npm ci
+npm run typecheck
+npm run lint
+npm test
+npm run build
+~~~
 
-The same frontend source works in an isolated directory with its own locked npm dependencies and a trusted `.component-inputs` directory. Supply `SOLOVEY_UI_INPUTS_SHA256` from the trusted producer's preparation result, then run `npm run typecheck`, `npm run lint`, `npm run test` and `npm run build` there. There is no parent-directory discovery or Go resolution in the frontend. Full includes its declared contributions; Core/minimal exclude optional UI from the compiled application.
+See BUILD_INPUTS.md and provenance/source-origin.json for the accepted origin and exact file mapping. Component sources remain their existing owners and are generated verified build inputs. Panel Update UI presentation is maintained here at components/panel-update-ui/frontend, preserving ComponentID panel-update-ui and settings:maintenance. Product retains its compatibility manifest and the canonical lifecycle/signed-update owners.
 
-For managed Product browser checks, install Chromium with `npx playwright install chromium` inside frontend, then run `node scripts/frontend.mjs test:e2e` from Product. The adapter explicitly supplies the server entrypoint, result directory and optional import-fixture directory. An independently supplied server can instead be used with `SUI_E2E_SKIP_WEB_SERVER=1` and explicit E2E connection settings.
+The extracted Git history retains original frontend authors. LICENSE and NOTICE.md retain GPL and upstream attribution. No Product release follows automatically from a Frontend source or artifact version.

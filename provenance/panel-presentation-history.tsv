@@ -1,0 +1,6 @@
+f9a9958eaf6a7a1bbb9aff44b3eaf10ce505647c	2026-10-18T10:49:09+03:00	MalenkiySolovey	fix(components): preserve ownership during safe removal
+d6b51cdeb1ee8085e18cd474a8258702387d7d56	2026-10-17T21:56:59+03:00	MalenkiySolovey	fix(componenthost): expose observed lifecycle separately from eligibility
+6a99d0e4fe4c7047f0eca3ff96159ce4bdc93f13	2026-08-15T02:57:14+03:00	MalenkiySolovey	refactor: finalize architecture and release hardening
+cb44ec3833acbc2d01ef4b6fba232aa97878fbf0	2026-08-12T00:37:51+03:00	MalenkiySolovey	feat: ship Solovey UI 2026.3.0
+5be0d168f69f6b32a0ca581a5ef5223d7d986be0	2026-07-03T01:37:11+03:00	MalenkiySolovey	Finalize Solovey UI 2026.2.0 release
+27f6b0b78b4c38b06bdf8a4a5140051256b14863	2026-07-02T16:59:26+03:00	MalenkiySolovey	Prepare Solovey UI 2026.2.0 release
