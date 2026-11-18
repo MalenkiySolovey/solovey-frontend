@@ -104,10 +104,13 @@ jobs:
           CGO_ENABLED: "1"
           SOLOVEY_FRONTEND_TEST_DIST: ${{ github.workspace }}/.artifacts/browser-package/dist
         run: go test -count=1 -v ./web -run 'TestEmbeddedFrontendMatchesDeclaredDistribution|TestFrontendInput|TestAssetsFS|TestComponentFrontendAssetDirs'
+      - name: Supply admitted UI inputs to browser-owned component scenarios
+        run: node scripts/prepare-inputs.mjs
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Preserve Classic Nexus Host session security and component behavior
         env:
+          SOLOVEY_UI_INPUTS_SHA256: e5d37046dbae72dd57a4a547fcfe199a13fcaf2f50027ee2fd8a2d96cabc2c6a
           SUI_E2E_FRONTEND_MODE: embedded
           SUI_E2E_SERVER_SCRIPT: ${{ github.workspace }}/.fixtures/product/tests/e2e/run-server.js
           SUI_E2E_SERVER_CWD: ${{ github.workspace }}/.fixtures/product
