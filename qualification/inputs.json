@@ -1,0 +1,15 @@
+{
+  "schema": "solovey.frontend-qualification-input/v1",
+  "productSource": "2b0f1252777efcc6d60446ec489fa4b83231ece2",
+  "archiveSource": "5a218232c23c0545fe4e6ff5f13f650a1bbf104b",
+  "url": "https://raw.githubusercontent.com/MalenkiySolovey/solovey-ui/5a218232c23c0545fe4e6ff5f13f650a1bbf104b/tests/fixtures/frontend-build-inputs/e5d37046dbae72dd57a4a547fcfe199a13fcaf2f50027ee2fd8a2d96cabc2c6a.json.gz",
+  "archiveSHA256": "7ac8154fd1c5beca5dae8cb57b7c482f6a42ec8a77fa85364a8618f6d4940a0b",
+  "manifestSHA256": "e5d37046dbae72dd57a4a547fcfe199a13fcaf2f50027ee2fd8a2d96cabc2c6a",
+  "backend": {
+    "module": "github.com/MalenkiySolovey/solovey-backend",
+    "version": "v0.1.1",
+    "sourceCommit": "73338525c2eac5de146004d515547ce813bc36ac"
+  },
+  "node": "25.9.0",
+  "npm": "11.12.1"
+}
