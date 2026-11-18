@@ -32,6 +32,8 @@ export function packFiles(kind, files) {
   const encoded = Object.create(null)
   for (const [name, bytes] of [...files].sort(([a],[b]) => a < b ? -1 : a > b ? 1 : 0)) encoded[safeArchivePath(name)] = Buffer.from(bytes).toString('base64')
   const bytes = gzipSync(Buffer.from(JSON.stringify({schema: 'solovey.frontend-file-archive/v1', kind, files: encoded})), {level: 9})
+  // RFC 1952 OS=255 makes identical file payloads portable across build hosts.
+  bytes[9] = 255
   unpackFiles(bytes, sha256(bytes), kind)
   return bytes
 }

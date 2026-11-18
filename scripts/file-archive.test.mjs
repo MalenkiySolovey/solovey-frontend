@@ -9,6 +9,10 @@ test('archives roundtrip only regular named bytes and are deterministic', () => 
   const a = packFiles('distribution', files), b = packFiles('distribution', files)
   assert.ok(a.equals(b)); assert.deepEqual(unpackFiles(a, sha256(a), 'distribution'), files)
 })
+test('portable gzip header has no build host or timestamp identity', () => {
+  const bytes = packFiles('source', new Map([['file', Buffer.from('same bytes')]]))
+  assert.deepEqual([...bytes.subarray(0, 10)], [31, 139, 8, 0, 0, 0, 0, 0, 2, 255])
+})
 test('archive rejects missing or forged caller trust, corrupted bytes and wrong kind', () => {
   const bytes = packFiles('source', new Map([['package.json', Buffer.from('{}')]]))
   assert.throws(() => unpackFiles(bytes, undefined, 'source'))
