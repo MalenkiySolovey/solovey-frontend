@@ -8,7 +8,7 @@ import {fileURLToPath} from 'node:url'
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex')
 export function safeArchivePath(name) {
   assert.equal(typeof name, 'string')
-  assert.ok(name && name.length <= 300 && name === name.normalize('NFC') && !name.startsWith('/') && !/[\\\x00-\x1f<>:"|?*]/.test(name), 'unsafe archive path')
+  assert.ok(name && name.length <= 300 && name === name.normalize('NFC') && !name.startsWith('/') && !/[\\<>:"|?*]/.test(name) && [...name].every(character => character.codePointAt(0) >= 32), 'unsafe archive path')
   for (const part of name.split('/')) assert.ok(part && part !== '.' && part !== '..' && !/[. ]$/.test(part) && !/^\.(?:git|hg|svn|bzr)$/i.test(part) && !/^(?:con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(part), 'unsafe archive path segment')
   return name
 }
