@@ -1,0 +1,129 @@
+name: Frontend CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: frontend-ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  independent:
+    name: producer-${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {platform: linux, os: ubuntu-24.04}
+          - {platform: windows, os: windows-latest}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Qualify exact source with admitted immutable inputs and no Product parents
+        shell: bash
+        run: node scripts/qualify.mjs "${{ runner.temp }}/frontend-producer"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: producer-${{ matrix.platform }}
+          path: ${{ runner.temp }}/frontend-producer
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30
+  parity:
+    name: artifact-parity
+    needs: independent
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version-file: .node-version
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: producer-linux
+          path: .artifacts/linux
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: producer-windows
+          path: .artifacts/windows
+      - name: Compare all profile archives, provenance and every output file
+        run: node scripts/compare-proofs.mjs .artifacts/linux .artifacts/windows
+  browser:
+    name: backend-browser
+    needs: [independent, parity]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Explicit accepted Backend integration fixture (never a build source)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: MalenkiySolovey/solovey-ui
+          ref: 2b0f1252777efcc6d60446ec489fa4b83231ece2
+          path: .fixtures/product
+          persist-credentials: false
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version-file: .fixtures/product/go.mod
+          cache-dependency-path: .fixtures/product/go.sum
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: producer-linux
+          path: .artifacts/qualified
+      - name: Verify and embed the exact qualified external distribution
+        run: |
+          node scripts/browser-artifact.mjs .artifacts/qualified .artifacts/browser-package
+          node .fixtures/product/scripts/frontend-assets.mjs publish --dist .artifacts/browser-package/dist --destination .fixtures/product/web/html
+      - name: Qualify actual Go embed, every asset, nested URLs and compatible Backend
+        working-directory: .fixtures/product
+        env:
+          CGO_ENABLED: "1"
+          SOLOVEY_FRONTEND_TEST_DIST: ${{ github.workspace }}/.artifacts/browser-package/dist
+        run: go test -count=1 -v ./web -run 'TestEmbeddedFrontendMatchesDeclaredDistribution|TestFrontendInput|TestAssetsFS|TestComponentFrontendAssetDirs'
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Preserve Classic Nexus Host session security and component behavior
+        env:
+          SUI_E2E_FRONTEND_MODE: embedded
+          SUI_E2E_SERVER_SCRIPT: ${{ github.workspace }}/.fixtures/product/tests/e2e/run-server.js
+          SUI_E2E_SERVER_CWD: ${{ github.workspace }}/.fixtures/product
+          SUI_E2E_IMPORT_FIXTURES_DIR: ${{ github.workspace }}/.fixtures/product/test-db
+          SUI_E2E_RESULT_DIR: ${{ runner.temp }}/frontend-browser
+        run: >-
+          npm run test:e2e --
+          tests/e2e/login.spec.ts tests/e2e/host-context.spec.ts
+          tests/e2e/component-ui.spec.ts tests/e2e/panel-operability.spec.ts
+          tests/e2e/panel-operability-ownership.spec.ts tests/e2e/nexus-layout.spec.ts
+          tests/e2e/security-headers.spec.ts tests/e2e/embedded-assets.spec.ts --retries=0
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: backend-browser
+          path: ${{ runner.temp }}/frontend-browser
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 30
