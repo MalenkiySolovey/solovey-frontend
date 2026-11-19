@@ -25,6 +25,7 @@ pnpm-debug.log*
 .component-inputs/
 .component-inputs.lock/
 .component-inputs-stage-*/
+.component-ui-check-*/
 .test-results/
 
 # Generated qualification and explicitly pinned integration fixture

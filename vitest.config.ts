@@ -18,6 +18,8 @@ export default defineConfig({
       '@solovey/component-ui/api': fileURLToPath(new URL('./src/componentSystem/api.ts', import.meta.url)),
       '@solovey/component-ui/contributions': fileURLToPath(new URL('./src/componentSystem/contributions.ts', import.meta.url)),
       '@solovey/component-ui/observation': fileURLToPath(new URL('./src/componentSystem/observation.ts', import.meta.url)),
+      '@solovey/component-ui/panel-import': fileURLToPath(new URL('./src/componentSystem/panelImport.ts', import.meta.url)),
+      '@solovey/component-ui/panel-billing': fileURLToPath(new URL('./src/componentSystem/panelBilling.ts', import.meta.url)),
       '@solovey/component-ui': fileURLToPath(new URL('./src/componentSystem/sdk.ts', import.meta.url)),
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },

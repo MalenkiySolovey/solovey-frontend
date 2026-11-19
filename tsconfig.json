@@ -21,6 +21,8 @@
       "@solovey/component-ui/api": ["./src/componentSystem/api.ts"],
       "@solovey/component-ui/contributions": ["./src/componentSystem/contributions.ts"],
       "@solovey/component-ui/observation": ["./src/componentSystem/observation.ts"],
+      "@solovey/component-ui/panel-import": ["./src/componentSystem/panelImport.ts"],
+      "@solovey/component-ui/panel-billing": ["./src/componentSystem/panelBilling.ts"],
       "@/*": ["./src/*"],
       "vue": ["./node_modules/vue"],
       "vue-i18n": ["./node_modules/vue-i18n"],
