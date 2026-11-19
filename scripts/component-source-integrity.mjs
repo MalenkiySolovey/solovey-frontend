@@ -123,11 +123,13 @@ export function regularSourceTree(directory) {
 
 export function verifyUIAPIInputs(frontendRoot, directory) {
   const pin = JSON.parse(fs.readFileSync(path.join(directory,'HOST_UI_PIN.json'), 'utf8'))
-  assert.equal(pin.repository, 'MalenkiySolovey/solovey-ui', 'unapproved UI API owner')
+  const frontendOwner = pin.repository === 'MalenkiySolovey/solovey-frontend'
+  assert.ok(frontendOwner || pin.repository === 'MalenkiySolovey/solovey-ui', 'unapproved UI API owner')
   assert.equal(pin.apiVersion, '1.0', 'unsupported UI contribution API')
   assert.match(pin.sourceCommit, /^[a-f0-9]{40}$/)
   const files = ['src/componentSystem/sdk.ts','package-lock.json','.node-version']
-  const accepted = [...files, 'src/componentSystem/observation.ts', 'src/componentSystem/api.ts', 'src/componentSystem/contributions.ts', 'src/componentSystem/subscriptionSources.ts', 'src/componentSystem/panelImport.ts', 'src/componentSystem/panelBilling.ts']
+  const accepted = [...files, 'src/componentSystem/observation.ts', 'src/componentSystem/api.ts', 'src/componentSystem/contributions.ts', 'src/componentSystem/subscriptionSources.ts']
+  if (frontendOwner) accepted.push('src/componentSystem/panelImport.ts', 'src/componentSystem/panelBilling.ts')
   assert.ok(files.every(name => Object.hasOwn(pin.files,name)) && Object.keys(pin.files).every(name => accepted.includes(name)), 'unsupported UI API inputs')
   for (const name of Object.keys(pin.files))
     assert.equal(digest(fs.readFileSync(path.join(frontendRoot,name))), pin.files[name], `UI API input drift: ${name}`)

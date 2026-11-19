@@ -89,6 +89,8 @@ export default defineConfig({
       { find: /^@solovey\/component-ui\/api$/, replacement: fileURLToPath(new URL('./src/componentSystem/api.ts', import.meta.url)) },
       { find: /^@solovey\/component-ui\/contributions$/, replacement: fileURLToPath(new URL('./src/componentSystem/contributions.ts', import.meta.url)) },
       { find: /^@solovey\/component-ui\/observation$/, replacement: fileURLToPath(new URL('./src/componentSystem/observation.ts', import.meta.url)) },
+      { find: /^@solovey\/component-ui\/panel-import$/, replacement: fileURLToPath(new URL('./src/componentSystem/panelImport.ts', import.meta.url)) },
+      { find: /^@solovey\/component-ui\/panel-billing$/, replacement: fileURLToPath(new URL('./src/componentSystem/panelBilling.ts', import.meta.url)) },
       { find: /^@solovey\/component-ui$/, replacement: fileURLToPath(new URL('./src/componentSystem/sdk.ts', import.meta.url)) },
       { find: '@', replacement: fileURLToPath(new URL('./src', import.meta.url)) },
       { find: /^notivue$/, replacement: fileURLToPath(new URL('./node_modules/notivue/dist/index.js', import.meta.url)) },

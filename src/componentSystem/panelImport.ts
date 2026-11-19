@@ -2,6 +2,8 @@ import { acquireStepUpToken } from '@/shared/composables/useSecurityOperations'
 import Data from '@/store/modules/data'
 import Ws from '@/store/ws'
 
+export type { Msg } from '@/plugins/httputil'
+
 export interface ImportProgress {
   readonly step: string
   readonly current: number

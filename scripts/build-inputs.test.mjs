@@ -41,18 +41,23 @@ for (const name of ['.node-version','package-lock.json','src/componentSystem/api
 test('verifies additive Import and Billing API pins without changing old inputs',()=>fixture(({frontend,temporary,read})=>{
   const directory=path.join(temporary,'new-component'), names=['src/componentSystem/sdk.ts','package-lock.json','.node-version']
   fs.mkdirSync(directory)
-  const pin={repository:'MalenkiySolovey/solovey-ui',apiVersion:'1.0',sourceCommit:'a'.repeat(40),files:{}}
+  const pin={repository:'MalenkiySolovey/solovey-frontend',apiVersion:'1.0',sourceCommit:'a'.repeat(40),files:{}}
+  const pinPath=path.join(directory,'HOST_UI_PIN.json')
   for (const name of names) pin.files[name]=sha256(fs.readFileSync(path.join(frontend,name)))
   for (const name of ['src/componentSystem/panelImport.ts','src/componentSystem/panelBilling.ts']) {
     const target=path.join(frontend,name)
     fs.copyFileSync(path.join(root,name),target)
     pin.files[name]=sha256(fs.readFileSync(target))
-    fs.writeFileSync(path.join(directory,'HOST_UI_PIN.json'),JSON.stringify(pin))
+    fs.writeFileSync(pinPath,JSON.stringify(pin))
     assert.doesNotThrow(()=>verifyUIAPIInputs(frontend,directory))
     fs.appendFileSync(target,'\nchanged')
     assert.throws(()=>verifyUIAPIInputs(frontend,directory),/UI API input drift/)
     fs.copyFileSync(path.join(root,name),target)
   }
+  fs.writeFileSync(pinPath,JSON.stringify({...pin,repository:'MalenkiySolovey/solovey-ui'}))
+  assert.throws(()=>verifyUIAPIInputs(frontend,directory),/unsupported UI API inputs/)
+  fs.writeFileSync(pinPath,JSON.stringify({...pin,repository:'example.invalid/frontend'}))
+  assert.throws(()=>verifyUIAPIInputs(frontend,directory),/unapproved UI API owner/)
   assert.doesNotThrow(()=>read())
 }))
 test('rejects unknown manifest schema and fields',()=>fixture(({directory,read})=>{
