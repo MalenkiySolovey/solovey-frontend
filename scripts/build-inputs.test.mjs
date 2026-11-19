@@ -8,6 +8,7 @@ import {readFrontendBuildInputs, selectFrontendEntries, frontendAPIFiles} from '
 import {verifyUIAPIInputs} from './component-source-integrity.mjs'
 import {sha256} from './file-archive.mjs'
 const root = fileURLToPath(new URL('../', import.meta.url)), admission = JSON.parse(fs.readFileSync(path.join(root, 'qualification/inputs.json')))
+const fixtureComponent = 'fallback-html'
 function fixture(run) {
   const temporary = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'solovey input-negative '))), frontend = path.join(temporary,'frontend'), directory = path.join(frontend,'.component-inputs')
   fs.mkdirSync(frontend)
@@ -17,9 +18,10 @@ function fixture(run) {
   finally { assert.ok(path.dirname(temporary) === fs.realpathSync.native(os.tmpdir()) && path.basename(temporary).startsWith('solovey input-negative ')); fs.rmSync(temporary,{recursive:true,force:true}) }
 }
 function rewrite(directory, edit) { const filename=path.join(directory,'manifest.json'), manifest=JSON.parse(fs.readFileSync(filename)); edit(manifest); const bytes=Buffer.from(JSON.stringify(manifest,null,2)+'\n'); fs.writeFileSync(filename,bytes); return sha256(bytes) }
-test('admitted historical input never registers intrinsic Panel Update; neutral profiles have no optional entries',()=>fixture(({read})=>{
-  const input=read(); assert.equal(input.manifest.components.length,8); assert.equal(input.entries.length,7)
-  assert.ok(input.manifest.components.some(entry=>entry.id==='panel-update-ui'))
+test('current inputs omit intrinsic Panel Update; neutral profiles have no optional entries',()=>fixture(({read})=>{
+  const input=read(); assert.ok(input.entries.some(entry=>entry.id===fixtureComponent))
+  assert.ok(!input.manifest.components.some(entry=>entry.id==='panel-update-ui'))
+  assert.deepEqual(input.entries.map(entry=>entry.id),input.manifest.components.map(entry=>entry.id))
   assert.throws(()=>selectFrontendEntries(input,{SOLOVEY_UI_COMPONENT_IDS:'panel-update-ui'}),/unavailable/)
   for (const profile of ['core','minimal']) assert.deepEqual(selectFrontendEntries(input,{SOLOVEY_UI_PROFILE:profile}),[])
   assert.throws(()=>selectFrontendEntries(input,{SOLOVEY_UI_COMPONENT_IDS:'unknown'}),/unavailable/)
@@ -30,8 +32,8 @@ test('caller digest is required and is not inferred from payload',()=>fixture(({
   assert.throws(()=>read('0'.repeat(64)),/SHA256 mismatch/)
 }))
 test('missing declared inputs never fall back to parent components',()=>fixture(({frontend,directory,temporary,read})=>{
-  fs.renameSync(directory,path.join(temporary,'saved-inputs')); fs.mkdirSync(path.join(temporary,'components','panel-update-ui','frontend'),{recursive:true})
-  fs.writeFileSync(path.join(temporary,'components','panel-update-ui','frontend','index.ts'),'throw new Error("untrusted parent")')
+  fs.renameSync(directory,path.join(temporary,'saved-inputs')); fs.mkdirSync(path.join(temporary,'components',fixtureComponent,'frontend'),{recursive:true})
+  fs.writeFileSync(path.join(temporary,'components',fixtureComponent,'frontend','index.ts'),'throw new Error("untrusted parent")')
   assert.throws(()=>read(),/ENOENT/)
   assert.ok(!fs.existsSync(path.join(frontend,'.component-inputs')))
 }))
@@ -67,13 +69,13 @@ test('rejects changed immutable component lock projection',()=>fixture(({directo
   const trusted=rewrite(directory,manifest=>{manifest.sourceLockDigest='0'.repeat(64)}); assert.throws(()=>read(trusted),/lock projection drift/)
 }))
 test('rejects wrong ComponentID even under an explicitly admitted malformed manifest',()=>fixture(({directory,read})=>{
-  const trusted=rewrite(directory,manifest=>{const c=manifest.components.find(c=>c.id==='panel-update-ui'); c.id='wrong-component-id'})
-  fs.renameSync(path.join(directory,'components','panel-update-ui'),path.join(directory,'components','wrong-component-id'))
+  const trusted=rewrite(directory,manifest=>{const c=manifest.components.find(c=>c.id===fixtureComponent); c.id='wrong-component-id'})
+  fs.renameSync(path.join(directory,'components',fixtureComponent),path.join(directory,'components','wrong-component-id'))
   assert.throws(()=>read(trusted))
 }))
 test('rejects extra/missing/changed UI bytes before build execution',()=>{
   for (const action of ['extra','missing','changed']) fixture(({directory,read})=>{
-    const ui=path.join(directory,'components','panel-update-ui','frontend')
+    const ui=path.join(directory,'components',fixtureComponent,'frontend')
     if(action==='extra')fs.writeFileSync(path.join(ui,'untrusted.ts'),'throw new Error("untrusted")')
     else if(action==='missing')fs.unlinkSync(path.join(ui,'index.ts'))
     else fs.appendFileSync(path.join(ui,'index.ts'),'\nthrow new Error("changed")')
@@ -81,7 +83,7 @@ test('rejects extra/missing/changed UI bytes before build execution',()=>{
   })
 })
 test('rejects symlinked UI directory on Linux and Windows',()=>fixture(({directory,temporary,read})=>{
-  const original=path.join(directory,'components','panel-update-ui','frontend'), moved=path.join(temporary,'moved-ui')
+  const original=path.join(directory,'components',fixtureComponent,'frontend'), moved=path.join(temporary,'moved-ui')
   fs.renameSync(original,moved);fs.symlinkSync(moved,original,'junction');assert.throws(()=>read(),/symlink|unsafe|regular/)
 }))
 test('rejects absent selected and URL-shaped dynamic component entries',()=>fixture(({directory,read})=>{
