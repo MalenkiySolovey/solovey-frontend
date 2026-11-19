@@ -6,7 +6,10 @@ import clients from './clients'
 import network from './network'
 import security from './security'
 
+import panelUpdate from './panelUpdate'
+
 export default {
+  ...panelUpdate,
   ...common,
   ...settings,
   ...routing,

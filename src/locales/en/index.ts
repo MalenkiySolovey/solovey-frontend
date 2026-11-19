@@ -10,7 +10,10 @@ import deployment from './deployment'
 import operations from './operations'
 import runtime from './runtime'
 
+import panelUpdate from './panelUpdate'
+
 export default {
+  ...panelUpdate,
   ...common,
   ...settings,
   ...routing,

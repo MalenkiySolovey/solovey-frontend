@@ -71,7 +71,11 @@ export function readFrontendBuildInputs(frontendRoot = fileURLToPath(new URL('..
     verifySourceFiles(componentRoot, component)
     assert.equal(regularSourceTree(componentRoot), component.inputTree, 'frontend input tree mismatch')
     if (manifest.sourceLock.sources.some(source => source.id === component.id)) verifyUIAPIInputs(frontendRoot, componentRoot)
-    entries.push({id: component.id, root: componentRoot, entry: path.join(componentRoot, 'frontend/index.ts')})
+    // Historical immutable receipts may list Panel Update. Verify the bytes,
+    // but do not expose an entry that can register the built-in feature again.
+    if (component.id !== 'panel-update-ui') {
+      entries.push({id: component.id, root: componentRoot, entry: path.join(componentRoot, 'frontend/index.ts')})
+    }
   }
   return {manifest, directory, manifestSHA256: expectedSHA256, entries}
 }

@@ -16,8 +16,10 @@ function fixture(run) {
   finally { assert.ok(path.dirname(temporary) === fs.realpathSync.native(os.tmpdir()) && path.basename(temporary).startsWith('solovey input-negative ')); fs.rmSync(temporary,{recursive:true,force:true}) }
 }
 function rewrite(directory, edit) { const filename=path.join(directory,'manifest.json'), manifest=JSON.parse(fs.readFileSync(filename)); edit(manifest); const bytes=Buffer.from(JSON.stringify(manifest,null,2)+'\n'); fs.writeFileSync(filename,bytes); return sha256(bytes) }
-test('admitted input contains eight unchanged contributions; neutral profiles contain none',()=>fixture(({read})=>{
-  const input=read(); assert.equal(input.entries.length,8)
+test('admitted historical input never registers intrinsic Panel Update; neutral profiles have no optional entries',()=>fixture(({read})=>{
+  const input=read(); assert.equal(input.manifest.components.length,8); assert.equal(input.entries.length,7)
+  assert.ok(input.manifest.components.some(entry=>entry.id==='panel-update-ui'))
+  assert.throws(()=>selectFrontendEntries(input,{SOLOVEY_UI_COMPONENT_IDS:'panel-update-ui'}),/unavailable/)
   for (const profile of ['core','minimal']) assert.deepEqual(selectFrontendEntries(input,{SOLOVEY_UI_PROFILE:profile}),[])
   assert.throws(()=>selectFrontendEntries(input,{SOLOVEY_UI_COMPONENT_IDS:'unknown'}),/unavailable/)
   assert.throws(()=>selectFrontendEntries(input,{SOLOVEY_UI_PROFILE:'arbitrary'}),/unsupported/)

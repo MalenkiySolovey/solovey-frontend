@@ -32,6 +32,7 @@ describe('locale loading', () => {
     expect(i18n.global.getLocaleMessage('en')).not.toHaveProperty('migrateXui')
     expect(i18n.global.getLocaleMessage('en')).not.toHaveProperty('audit')
     expect(i18n.global.getLocaleMessage('en')).not.toHaveProperty('diagnostics')
+    expect(i18n.global.getLocaleMessage('en')).toHaveProperty('panelUpdateComponent.componentCatalog')
   })
 
   it('loads stored locale with english fallback on startup', async () => {

@@ -2,15 +2,9 @@ import fs from 'node:fs'
 import path from 'node:path'
 import assert from 'node:assert/strict'
 import {fileURLToPath} from 'node:url'
-import {unpackFiles, writeFreshFiles, readRegularFiles, sha256} from './file-archive.mjs'
+import {unpackFiles, writeFreshFiles, sha256} from './file-archive.mjs'
 import {readFrontendBuildInputs} from './component-build-inputs.mjs'
 export const frontendRoot = fileURLToPath(new URL('../', import.meta.url))
-export function verifyPanelPresentation(root, inputDirectory) {
-  const canonical = readRegularFiles(path.join(root, 'components/panel-update-ui/frontend'))
-  const supplied = readRegularFiles(path.join(inputDirectory, 'components/panel-update-ui/frontend'))
-  assert.deepEqual([...supplied.keys()], [...canonical.keys()], 'Panel Update UI source closure drift')
-  for (const [name, bytes] of canonical) assert.ok(bytes.equals(supplied.get(name)), 'Panel Update UI differs from canonical Frontend source: ' + name)
-}
 export async function prepareInputs(root = frontendRoot, archiveFilename) {
   const admission = JSON.parse(fs.readFileSync(path.join(root, 'qualification/inputs.json')))
   assert.equal(admission.schema, 'solovey.frontend-qualification-input/v1')
@@ -26,9 +20,8 @@ export async function prepareInputs(root = frontendRoot, archiveFilename) {
   const files = unpackFiles(bytes, admission.archiveSHA256, 'inputs'), destination = path.join(root, '.component-inputs')
   assert.equal(sha256(files.get('manifest.json')), admission.manifestSHA256, 'trusted manifest admission mismatch')
   if (!fs.existsSync(destination)) writeFreshFiles(destination, files)
-  readFrontendBuildInputs(root, admission.manifestSHA256, destination)
-  verifyPanelPresentation(root, destination)
-  return {admission, directory: destination, manifestSHA256: admission.manifestSHA256}
+  const input = readFrontendBuildInputs(root, admission.manifestSHA256, destination)
+  return {...input, admission}
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   assert.ok(process.argv.length <= 3)
