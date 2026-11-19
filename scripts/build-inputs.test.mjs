@@ -5,6 +5,7 @@ import path from 'node:path'
 import assert from 'node:assert/strict'
 import {fileURLToPath} from 'node:url'
 import {readFrontendBuildInputs, selectFrontendEntries, frontendAPIFiles} from './component-build-inputs.mjs'
+import {verifyUIAPIInputs} from './component-source-integrity.mjs'
 import {sha256} from './file-archive.mjs'
 const root = fileURLToPath(new URL('../', import.meta.url)), admission = JSON.parse(fs.readFileSync(path.join(root, 'qualification/inputs.json')))
 function fixture(run) {
@@ -36,6 +37,23 @@ test('missing declared inputs never fall back to parent components',()=>fixture(
 }))
 for (const name of ['.node-version','package-lock.json','src/componentSystem/api.ts']) test('rejects API/toolchain drift '+name,()=>fixture(({frontend,read})=>{
   fs.appendFileSync(path.join(frontend,name),'\nchanged'); assert.throws(()=>read(),/toolchain input drift/)
+}))
+test('verifies additive Import and Billing API pins without changing old inputs',()=>fixture(({frontend,temporary,read})=>{
+  const directory=path.join(temporary,'new-component'), names=['src/componentSystem/sdk.ts','package-lock.json','.node-version']
+  fs.mkdirSync(directory)
+  const pin={repository:'MalenkiySolovey/solovey-ui',apiVersion:'1.0',sourceCommit:'a'.repeat(40),files:{}}
+  for (const name of names) pin.files[name]=sha256(fs.readFileSync(path.join(frontend,name)))
+  for (const name of ['src/componentSystem/panelImport.ts','src/componentSystem/panelBilling.ts']) {
+    const target=path.join(frontend,name)
+    fs.copyFileSync(path.join(root,name),target)
+    pin.files[name]=sha256(fs.readFileSync(target))
+    fs.writeFileSync(path.join(directory,'HOST_UI_PIN.json'),JSON.stringify(pin))
+    assert.doesNotThrow(()=>verifyUIAPIInputs(frontend,directory))
+    fs.appendFileSync(target,'\nchanged')
+    assert.throws(()=>verifyUIAPIInputs(frontend,directory),/UI API input drift/)
+    fs.copyFileSync(path.join(root,name),target)
+  }
+  assert.doesNotThrow(()=>read())
 }))
 test('rejects unknown manifest schema and fields',()=>fixture(({directory,read})=>{
   const trusted=rewrite(directory,manifest=>{manifest.schema='untrusted/v99'}); assert.throws(()=>read(trusted),/unsupported/)
