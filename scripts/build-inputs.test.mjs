@@ -9,10 +9,11 @@ import {verifyUIAPIInputs} from './component-source-integrity.mjs'
 import {sha256} from './file-archive.mjs'
 const root = fileURLToPath(new URL('../', import.meta.url)), admission = JSON.parse(fs.readFileSync(path.join(root, 'qualification/inputs.json')))
 const fixtureComponent = 'fallback-html'
+const additiveOwnerFiles = ['src/componentSystem/panelImport.ts', 'src/componentSystem/panelBilling.ts']
 function fixture(run) {
   const temporary = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'solovey input-negative '))), frontend = path.join(temporary,'frontend'), directory = path.join(frontend,'.component-inputs')
   fs.mkdirSync(frontend)
-  for (const name of frontendAPIFiles) { fs.mkdirSync(path.dirname(path.join(frontend,name)),{recursive:true}); fs.copyFileSync(path.join(root,name),path.join(frontend,name)) }
+  for (const name of [...frontendAPIFiles, ...additiveOwnerFiles]) { fs.mkdirSync(path.dirname(path.join(frontend,name)),{recursive:true}); fs.copyFileSync(path.join(root,name),path.join(frontend,name)) }
   fs.cpSync(path.join(root,'.component-inputs'),directory,{recursive:true})
   try { return run({frontend,directory,temporary,read: trusted => readFrontendBuildInputs(frontend,trusted === undefined ? admission.manifestSHA256 : trusted,directory)}) }
   finally { assert.ok(path.dirname(temporary) === fs.realpathSync.native(os.tmpdir()) && path.basename(temporary).startsWith('solovey input-negative ')); fs.rmSync(temporary,{recursive:true,force:true}) }
@@ -46,9 +47,8 @@ test('verifies additive Import and Billing API pins without changing old inputs'
   const pin={repository:'MalenkiySolovey/solovey-frontend',apiVersion:'1.0',sourceCommit:'a'.repeat(40),files:{}}
   const pinPath=path.join(directory,'HOST_UI_PIN.json')
   for (const name of names) pin.files[name]=sha256(fs.readFileSync(path.join(frontend,name)))
-  for (const name of ['src/componentSystem/panelImport.ts','src/componentSystem/panelBilling.ts']) {
+  for (const name of additiveOwnerFiles) {
     const target=path.join(frontend,name)
-    fs.copyFileSync(path.join(root,name),target)
     pin.files[name]=sha256(fs.readFileSync(target))
     fs.writeFileSync(pinPath,JSON.stringify(pin))
     assert.doesNotThrow(()=>verifyUIAPIInputs(frontend,directory))
