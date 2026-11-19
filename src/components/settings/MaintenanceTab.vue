@@ -6,15 +6,11 @@
       </v-card>
     </v-col>
 
-    <v-col v-if="maintenanceSlots.length > 0" cols="12" md="6">
-      <v-card class="settings-maintenance__card" variant="outlined">
-        <div class="settings-maintenance__slot">
-          <ComponentSlot name="settings:maintenance" />
-        </div>
-      </v-card>
+    <v-col cols="12" md="6">
+      <PanelUpdateCard class="settings-maintenance__card" />
     </v-col>
 
-    <v-col cols="12" :md="maintenanceSlots.length > 0 ? 6 : 12">
+    <v-col cols="12" md="6">
       <v-card class="settings-maintenance__card settings-maintenance__backup" variant="outlined">
         <div class="settings-maintenance__heading">
           <v-icon color="primary" icon="mdi-backup-restore" />
@@ -25,16 +21,27 @@
         <BackupRestorePanel />
       </v-card>
     </v-col>
+
+    <v-col v-if="maintenanceSlots.length > 0" cols="12">
+      <v-card class="settings-maintenance__card" variant="outlined">
+        <div class="settings-maintenance__slot">
+          <ComponentSlot name="settings:maintenance" />
+        </div>
+      </v-card>
+    </v-col>
+
   </v-row>
 </template>
 
 <script setup lang="ts">
+import { defineAsyncComponent } from 'vue'
 import BackupRestorePanel from '@/components/settings/BackupRestorePanel.vue'
 import ConfigDoctor from '@/components/settings/ConfigDoctor.vue'
 import ComponentSlot from '@/componentSystem/ComponentSlot.vue'
 import { useSlot } from '@/componentSystem/slots'
 
 const maintenanceSlots = useSlot('settings:maintenance')
+const PanelUpdateCard = defineAsyncComponent(() => import('./panelUpdate/components/PanelUpdateCard.vue'))
 </script>
 
 <style scoped>

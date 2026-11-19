@@ -7,7 +7,7 @@ import {execFileSync, spawnSync} from 'node:child_process'
 import {fileURLToPath} from 'node:url'
 import {stripVTControlCharacters} from 'node:util'
 import {sha256, readRegularFiles, packFiles} from './file-archive.mjs'
-import {prepareInputs, verifyPanelPresentation} from './prepare-inputs.mjs'
+import {prepareInputs} from './prepare-inputs.mjs'
 const root = fileURLToPath(new URL('../', import.meta.url))
 const out = path.resolve(process.argv[2] || '.artifacts/producer')
 assert.ok(!fs.existsSync(out), 'qualification output must be fresh')
@@ -76,6 +76,7 @@ const qualifyDist = (key, profile, componentIDs, inputHash, thirdParty) => {
   }
   const ids = Object.keys(manifest).filter(name => name.startsWith('.component-inputs/components/') && name.endsWith('/frontend/index.ts')).map(name => name.split('/')[2]).sort()
   assert.deepEqual(ids, componentIDs, 'compiled UI component profile drift')
+  assert.ok(manifest['src/components/settings/panelUpdate/components/PanelUpdateCard.vue']?.isDynamicEntry, 'intrinsic Panel Update is missing from ' + key)
   const packaged = new Map([...dist].map(([name, bytes]) => ['dist/' + name, bytes]))
   for (const name of ['LICENSE', 'NOTICE.md']) packaged.set(name, sourceFiles.get(name))
   packaged.set('THIRD_PARTY_NOTICES.json', thirdParty)
@@ -96,7 +97,7 @@ try {
   run('negative-inputs-and-archives', ['--test', 'scripts/build-inputs.test.mjs', 'scripts/file-archive.test.mjs'])
   for (const task of ['typecheck', 'lint', 'test']) run(task, [npm, 'run', task])
   const thirdParty = licenses(), admittedManifest = JSON.parse(fs.readFileSync(path.join(work, '.component-inputs/manifest.json')))
-  const allIDs = admittedManifest.components.map(c=>c.id).sort()
+  const allIDs = supplied.entries.map(c=>c.id).sort()
   for (const [key,profile,ids] of [['full','full',allIDs], ['core','core',[]], ['minimal','minimal',[]], ['custom-fallback-html','full',['fallback-html']], ['custom-server-protection','full',['server-protection']], ['custom-remote-outbound-subscriptions','full',['remote-outbound-subscriptions']]]) {
     const buildEnv = {...env, SOLOVEY_UI_PROFILE: profile}
     if (key.startsWith('custom-')) buildEnv.SOLOVEY_UI_COMPONENT_IDS = ids.join(',')
@@ -111,7 +112,6 @@ try {
   run('build-core-empty-inputs', [npm, 'run', 'build'], {...env, SOLOVEY_UI_PROFILE: 'core', SOLOVEY_UI_INPUTS_SHA256: sha256(emptyBytes)})
   qualifyDist('core-empty-inputs', 'core', [], sha256(emptyBytes), thirdParty)
   for (const profile of ['minimal','core-empty-inputs']) assert.deepEqual(result.profiles[profile].fileHashes, result.profiles.core.fileHashes, 'neutral Core output differs')
-  verifyPanelPresentation(root, supplied.directory)
   result.result = 'PASS'
   fs.writeFileSync(path.join(out, 'producer-index.json'), JSON.stringify(index, null, 2) + '\n')
   fs.writeFileSync(path.join(out, 'proof.json'), JSON.stringify(result, null, 2) + '\n')
