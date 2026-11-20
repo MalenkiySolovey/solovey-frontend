@@ -38,4 +38,18 @@ for (const mode of ['classic', 'nexus']) {
       await enableComponent(page, 'observability-extra')
     }
   })
+
+  test(`${mode} loads the Paid contribution and reads tariffs from the Panel API`, async ({ page }) => {
+    await page.addInitScript(selected => window.localStorage.setItem('sui:ui:mode', selected), mode)
+    await login(page)
+    const baseURL = readServerState().baseURL
+    const tariffsURL = new URL('api/paidsub/tariffs', baseURL).toString()
+    const tariffs = page.waitForResponse(response => response.request().method() === 'GET' && response.url() === tariffsURL)
+    await page.goto('paid-subscriptions')
+    const response = await tariffs
+    expect(response.ok()).toBe(true)
+    expect((await response.json()).success).toBe(true)
+    await expect(page.getByRole('tab', { name: 'Tariffs', exact: true })).toBeVisible()
+    await expect(page.getByRole('tab', { name: 'Orders', exact: true })).toBeVisible()
+  })
 }
