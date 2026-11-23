@@ -5,6 +5,48 @@ import { csrfToken, enableComponent, login, mutationHeaders } from './helpers'
 const strategies = 'api/components/zapret/strategies'
 
 for (const mode of ['classic', 'nexus']) {
+  test(`${mode} attaches a shared QUIC blob and exports its reference`, async ({ page }) => {
+    test.setTimeout(90_000)
+    await page.addInitScript(layout => window.localStorage.setItem('sui:ui:mode', layout), mode)
+    await login(page)
+    await enableComponent(page, 'zapret')
+    await page.goto('zapret')
+    const blobID = `${mode}-quic-decoy`
+    const name = `${mode} QUIC strategy`
+    const row = (title: string) => page.getByRole('listitem').filter({ has: page.getByText(title, { exact: true }) })
+    const dialog = page.getByRole('dialog')
+    await page.getByRole('button', { name: 'New QUIC blob', exact: true }).click()
+    await dialog.getByRole('textbox', { name: 'Blob ID', exact: true }).fill(blobID)
+    await dialog.getByRole('textbox', { name: 'Hexadecimal bytes (up to 1200 bytes)', exact: true }).fill('405549')
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(row(blobID)).toBeVisible()
+
+    await page.getByRole('button', { name: 'New strategy', exact: true }).click()
+    await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill(name)
+    await dialog.getByRole('button', { name: 'QUIC/UDP preset', exact: true }).click()
+    await dialog.getByRole('combobox', { name: 'QUIC decoy blob', exact: true }).press('Enter')
+    await page.getByRole('option', { name: blobID, exact: true }).click()
+    await dialog.getByRole('button', { name: 'Native options', exact: true }).click()
+    const native = dialog.getByRole('textbox', { name: 'Native options' })
+    await expect(native).toHaveValue(new RegExp(`blob=asset_${blobID}:repeats=1`))
+    expect(await native.inputValue()).not.toContain('405549')
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(row(name)).toBeVisible()
+    await expect(row(blobID).getByRole('button', { name: 'Delete QUIC blob', exact: true })).toBeDisabled()
+
+    const file = page.waitForEvent('download')
+    await row(name).getByRole('button', { name: 'Export', exact: true }).click()
+    const transfer = JSON.parse(await fs.readFile(await (await file).path(), 'utf8'))
+    expect(transfer.blobAssets).toEqual({ [blobID]: '405549' })
+    expect(transfer.strategy.definition.profiles[0].quicBlobRef).toBe(blobID)
+    await row(name).getByRole('button', { name: 'Delete strategy', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Delete strategy', exact: true }).click()
+    await expect(row(name)).toHaveCount(0)
+    await row(blobID).getByRole('button', { name: 'Delete QUIC blob', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Delete QUIC blob', exact: true }).click()
+    await expect(row(blobID)).toHaveCount(0)
+  })
+
   test(`${mode} edits reusable Zapret strategies and selects one DNS transport`, async ({ page }) => {
     test.setTimeout(90_000)
     await page.addInitScript(layout => window.localStorage.setItem('sui:ui:mode', layout), mode)
