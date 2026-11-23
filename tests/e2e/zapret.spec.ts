@@ -5,6 +5,30 @@ import { csrfToken, enableComponent, login, mutationHeaders } from './helpers'
 const strategies = 'api/components/zapret/strategies'
 
 for (const mode of ['classic', 'nexus']) {
+  test(`${mode} shows native profile evidence for the applied Direct only`, async ({ page }) => {
+    await page.addInitScript(layout => window.localStorage.setItem('sui:ui:mode', layout), mode)
+    await login(page)
+    await enableComponent(page, 'zapret')
+    let applied = true
+    // The installed broker proof qualifies the evidence source. Here exercise
+    // the presentation, including an out-of-date observation in a response.
+    await page.route(`**/${strategies}`, route => route.fulfill({ json: { success: true, obj: {
+      catalog: { records: {} }, ready: true, references: [
+        { outboundRef: 'trace-a', strategyRef: 'http-a', enabled: true, queue: 401,
+          state: applied ? 'applied' : 'pending', nativeMatches: { profiles: ['http-profile-a'] } },
+        { outboundRef: 'trace-b', strategyRef: 'http-b', enabled: true, queue: 401, state: 'applied', nativeMatches: {} },
+      ],
+    } } }))
+    await page.goto('zapret')
+    const row = (ref: string) => page.getByRole('row').filter({ has: page.getByText(ref, { exact: true }) })
+    await expect(row('trace-a').getByText('http-profile-a', { exact: true })).toBeVisible()
+    await expect(row('trace-b').getByText('No native profile observed yet', { exact: true })).toBeVisible()
+    applied = false
+    await page.getByRole('button', { name: 'Refresh', exact: true }).click()
+    await expect(row('trace-a').getByText('Desired differs from applied')).toBeVisible()
+    await expect(page.getByText('http-profile-a', { exact: true })).toHaveCount(0)
+  })
+
   test(`${mode} attaches a shared QUIC blob and exports its reference`, async ({ page }) => {
     test.setTimeout(90_000)
     await page.addInitScript(layout => window.localStorage.setItem('sui:ui:mode', layout), mode)
