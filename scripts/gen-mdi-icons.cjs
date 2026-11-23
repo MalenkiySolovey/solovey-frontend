@@ -21,6 +21,7 @@ const path = require('path')
 const mdi = require('@mdi/js')
 
 const USED_ICONS = [
+  'mdi-tune-variant',
   'mdi-account-alert-outline',
   'mdi-account-edit',
   'mdi-account-key-outline',
@@ -56,6 +57,7 @@ const USED_ICONS = [
   'mdi-chevron-down',
   'mdi-chevron-left',
   'mdi-chevron-right',
+  'mdi-chevron-up',
   'mdi-clipboard-search',
   'mdi-close',
   'mdi-close-box',
@@ -70,6 +72,7 @@ const USED_ICONS = [
   'mdi-content-copy',
   'mdi-content-duplicate',
   'mdi-content-save',
+	'mdi-content-save-outline',
 	'mdi-content-save-cog-outline',
   'mdi-database-check',
 	'mdi-database-eye-outline',
@@ -133,10 +136,12 @@ const USED_ICONS = [
   'mdi-palette-outline',
   'mdi-pause',
   'mdi-pencil',
+  'mdi-pencil-outline',
   'mdi-play',
 	'mdi-play-circle-outline',
   'mdi-plus',
   'mdi-progress-clock',
+  'mdi-pulse',
   'mdi-qrcode',
   'mdi-receipt-text-outline',
 	'mdi-record-circle-outline',
