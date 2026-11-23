@@ -39,7 +39,7 @@ for (const mode of ['classic', 'nexus']) {
     await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill(name)
     await dialog.getByRole('button', { name: 'TLS/TCP preset' }).click()
     await dialog.getByText('Native filters', { exact: true }).click()
-    await dialog.getByRole('combobox', { name: 'Include domains: shared list', exact: true }).click()
+    await dialog.getByRole('combobox', { name: 'Include domains: shared list', exact: true }).press('Enter')
     await page.getByRole('option', { name: listID, exact: true }).click()
     await dialog.getByRole('button', { name: 'Native options' }).click()
     const native = dialog.getByRole('textbox', { name: 'Native options' })
