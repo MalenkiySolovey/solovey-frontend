@@ -1,16 +1,63 @@
 import { defineComponent } from 'vue'
 import Data from '@/store/modules/data'
 import DomainResolver from '@/components/fields/DomainResolver.vue'
+import { boundDirect, hasZapretComponent, readZapretSummary, zapretDialConflict, type ZapretCatalogSummary } from '@/features/zapretBinding'
 
 export default defineComponent({
-  props: ['dial', 'mode'],
+  props: ['dial', 'mode', 'context'],
   data() {
     return {
-      menu: false
+      menu: false,
+      zapretCatalog: undefined as ZapretCatalogSummary | undefined,
     }
   },
   computed: {
-    outTags() { return [...Data().outbounds?.map((o:any) => o.tag), ...Data().endpoints?.map((e:any) => e.tag)] },
+    outTags(): string[] {
+      return [...(Data().outbounds ?? []).map((o:any) => o.tag), ...(Data().endpoints ?? []).map((e:any) => e.tag)]
+        .filter(tag => this.context !== 'outbound' || tag !== this.dial.tag)
+    },
+    dnsTransport(): boolean { return this.context === 'dns' && ['https', 'tls'].includes(this.dial.type) },
+    dnsTransportOptions(): { title: string; value: string }[] {
+      const tags = this.dial.detour && !this.outTags.includes(this.dial.detour) ? [...this.outTags, this.dial.detour] : this.outTags
+      return [{ title: String(this.$t('zapretDial.defaultTransport')), value: '' }, ...tags.map(value => ({ title: value, value }))]
+    },
+    dnsDetour: {
+      get(): string { return this.dial.detour ?? '' },
+      set(value: string) { if (value) this.dial.detour = value; else delete this.dial.detour },
+    },
+    directEditor(): boolean { return this.context === 'outbound' && this.dial.type === 'direct' },
+    hasZapret(): boolean { return hasZapretComponent() },
+    showZapretBinding(): boolean { return this.directEditor && (this.hasZapret || Boolean(this.dial.zapret)) },
+    zapretConflict(): boolean { return zapretDialConflict(this.dial) },
+    zapretOn: {
+      get(): boolean { return this.dial.zapret?.enabled === true },
+      set(enabled: boolean) {
+        this.dial.zapret = { outboundRef: this.dial.tag, strategyRef: this.dial.zapret?.strategyRef ?? 'none', enabled }
+      },
+    },
+    zapretStrategy: {
+      get(): string { return this.dial.zapret?.strategyRef ?? 'none' },
+      set(strategyRef: string) {
+        this.dial.zapret = { outboundRef: this.dial.tag, strategyRef, enabled: this.zapretOn }
+      },
+    },
+    zapretChoices(): { title: string; value: string }[] {
+      const known = Object.entries(this.zapretCatalog?.catalog.records ?? {}).map(([value, item]) => ({ value, title: item.name }))
+      const selected = this.zapretStrategy
+      if (selected !== 'none' && !known.some(item => item.value === selected)) known.push({ value: selected, title: selected })
+      return [{ value: 'none', title: String(this.$t('zapretDial.noStrategy')) }, ...known.sort((a, b) => a.title.localeCompare(b.title))]
+    },
+    dnsZapret() {
+      return this.context === 'dns' ? boundDirect(Data().outbounds ?? [], this.dial.detour) : undefined
+    },
+    dnsZapretName(): string {
+      const ref = this.dnsZapret?.strategyRef ?? ''
+      return this.zapretCatalog?.catalog.records[ref]?.name ?? ref
+    },
+    dnsZapretState(): string {
+      return this.zapretCatalog?.references.find(ref => ref.outboundRef === this.dnsZapret?.outboundRef && ref.strategyRef === this.dnsZapret?.strategyRef)?.state ?? 'blocked'
+    },
+    shouldLoadZapret(): boolean { return this.hasZapret && (this.directEditor || Boolean(this.dnsZapret)) },
     networkTypes() { return ['wifi', 'cellular', 'ethernet', 'other'] },
     networkStrategies() { return ['fallback', 'hybrid'] },
     networkConflict(): boolean {
@@ -161,6 +208,18 @@ export default defineComponent({
       }
     },
     dnsTags() {return Data().config.dns?.servers?.map((d:any) => d.tag) ?? []}
+  },
+  watch: {
+    shouldLoadZapret: {
+      immediate: true,
+      async handler(load: boolean) {
+        this.zapretCatalog = undefined
+        if (load) this.zapretCatalog = await readZapretSummary()
+      },
+    },
+    'dial.tag'(tag: string) {
+      if (this.directEditor && this.dial.zapret) this.dial.zapret.outboundRef = tag
+    },
   },
   components: { DomainResolver }
 })

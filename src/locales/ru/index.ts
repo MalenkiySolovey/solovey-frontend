@@ -9,6 +9,7 @@ import sshManagement from './sshManagement'
 import deployment from './deployment'
 import operations from './operations'
 import runtime from './runtime'
+import zapretDial from './zapretDial'
 
 import panelUpdate from './panelUpdate'
 
@@ -25,4 +26,5 @@ export default {
   ...deployment,
   ...operations,
   ...runtime,
+  ...zapretDial,
 }
