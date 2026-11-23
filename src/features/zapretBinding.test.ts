@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { boundDirect, hasZapretComponent, zapretDialConflict } from './zapretBinding'
+import { boundDirect, hasZapretComponent, isZapretDNSTransport, zapretDialConflict } from './zapretBinding'
 
 const fixture = vi.hoisted(() => ({ components: [] as object[] }))
 vi.mock('@/store/modules/data', () => ({ default: () => fixture }))
@@ -29,5 +29,10 @@ describe('Zapret Dial Options', () => {
     expect(zapretDialConflict({ detour: 'proxy' })).toBe(true)
     expect(zapretDialConflict({ routing_mark: 0 })).toBe(true)
     expect(zapretDialConflict({ bind_interface: '' })).toBe(true)
+  })
+
+  it('uses the existing DNS detour control for encrypted QUIC and TCP transports', () => {
+    for (const type of ['quic', 'h3', 'https', 'tls']) expect(isZapretDNSTransport(type)).toBe(true)
+    for (const type of ['udp', 'tcp', 'local', 'hosts', undefined]) expect(isZapretDNSTransport(type)).toBe(false)
   })
 })

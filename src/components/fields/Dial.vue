@@ -24,6 +24,7 @@
         <v-alert density="compact" variant="tonal" :type="dnsTransport && dnsZapretState === 'applied' ? 'info' : 'warning'">
           {{ $t('zapretDial.uses', { direct: dnsZapret.outboundRef, strategy: dnsZapretName }) }}
           {{ $t(dnsTransport ? `zapretDial.states.${dnsZapretState}` : 'zapretDial.unsupportedDNS') }}
+          <template v-if="dial.type === 'quic' || dial.type === 'h3'">{{ $t('zapretDial.requiresQUIC') }}</template>
         </v-alert>
       </v-col>
     </v-row>
