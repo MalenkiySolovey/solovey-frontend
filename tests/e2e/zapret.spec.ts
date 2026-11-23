@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import fs from 'node:fs/promises'
 import { csrfToken, enableComponent, login, mutationHeaders } from './helpers'
 
 const strategies = 'api/components/zapret/strategies'
@@ -12,6 +13,7 @@ for (const mode of ['classic', 'nexus']) {
     await page.goto('zapret')
     const name = `${mode} resolver strategy`
     const direct = `zapret-${mode}-direct`
+    const listID = `${mode}-resolver-hosts`
     const row = (title: string) => page.getByRole('listitem').filter({ has: page.getByText(title, { exact: true }) })
     const catalog = async () => {
       const body = await (await page.request.get(strategies)).json()
@@ -25,19 +27,39 @@ for (const mode of ['classic', 'nexus']) {
     })
     expect(forbidden.status()).toBe(403)
 
+    await page.getByRole('button', { name: 'New native list', exact: true }).click()
+    const listDialog = page.getByRole('dialog')
+    await listDialog.getByRole('textbox', { name: 'List ID', exact: true }).fill(listID)
+    await listDialog.getByRole('textbox', { name: 'Entries', exact: true }).fill('resolver.example')
+    await listDialog.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(row(listID)).toBeVisible()
+
     await page.getByRole('button', { name: 'New strategy', exact: true }).click()
     let dialog = page.getByRole('dialog')
     await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill(name)
     await dialog.getByRole('button', { name: 'TLS/TCP preset' }).click()
+    await dialog.getByText('Native filters', { exact: true }).click()
+    await dialog.getByRole('combobox', { name: 'Include domains: shared list', exact: true }).click()
+    await page.getByRole('option', { name: listID, exact: true }).click()
     await dialog.getByRole('button', { name: 'Native options' }).click()
     const native = dialog.getByRole('textbox', { name: 'Native options' })
     await expect(native).toHaveValue(/--filter-tcp=443,853/)
     const text = await native.inputValue()
+    expect(text).not.toContain('--hostlist-domains')
+    await expect(dialog.getByText(`Include domains: ${listID}`, { exact: true })).toBeVisible()
     await dialog.getByRole('button', { name: 'Profiles', exact: true }).click()
     await dialog.getByRole('button', { name: 'Native options' }).click()
     await expect(native).toHaveValue(text)
     await dialog.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(row(name)).toBeVisible()
+    await expect(row(listID).getByRole('button', { name: 'Delete native list' })).toBeDisabled()
+
+    const file = page.waitForEvent('download')
+    await row(name).getByRole('button', { name: 'Export', exact: true }).click()
+    const transfer = JSON.parse(await fs.readFile(await (await file).path(), 'utf8'))
+    expect(transfer.strategy.raw).toBe(text)
+    expect(transfer.strategy.listRefs).toEqual({ 'profile-1': { hostList: listID } })
+    expect(transfer.lists).toEqual({ [listID]: { kind: 'hostList', entries: ['resolver.example'] } })
 
     await row(name).getByRole('button', { name: 'Clone strategy' }).click()
     await dialog.getByRole('button', { name: 'Save', exact: true }).click()
@@ -85,7 +107,7 @@ for (const mode of ['classic', 'nexus']) {
         .filter({ has: page.getByText(direct, { exact: true }) })
       await outboundRow.getByRole('button', { name: 'Edit', exact: true }).click()
       dialog = page.getByRole('dialog')
-      await expect(dialog.getByText('Installed IPv4/TCP only')).toBeVisible()
+      await expect(dialog.getByText('Protocols and IP families depend on the installed profile')).toBeVisible()
       await expect(dialog.getByText(`${name} edited`, { exact: true })).toBeVisible()
 
       await page.goto('dns')
@@ -106,6 +128,8 @@ for (const mode of ['classic', 'nexus']) {
       const latest = await catalog()
       const deleted = await change({ action: 'delete', expectedRevision: latest.revision, id: strategy })
       expect(deleted.success, deleted.msg).toBe(true)
+      const listDeleted = await change({ action: 'delete-list', expectedRevision: deleted.obj.revision, id: listID })
+      expect(listDeleted.success, listDeleted.msg).toBe(true)
     }
   })
 }
