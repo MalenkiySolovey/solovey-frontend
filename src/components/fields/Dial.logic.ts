@@ -1,7 +1,7 @@
 import { defineComponent } from 'vue'
 import Data from '@/store/modules/data'
 import DomainResolver from '@/components/fields/DomainResolver.vue'
-import { boundDirect, hasZapretComponent, readZapretSummary, zapretDialConflict, type ZapretCatalogSummary } from '@/features/zapretBinding'
+import { boundDirect, hasZapretComponent, isZapretDNSTransport, readZapretSummary, zapretDialConflict, type ZapretCatalogSummary } from '@/features/zapretBinding'
 
 export default defineComponent({
   props: ['dial', 'mode', 'context'],
@@ -16,7 +16,7 @@ export default defineComponent({
       return [...(Data().outbounds ?? []).map((o:any) => o.tag), ...(Data().endpoints ?? []).map((e:any) => e.tag)]
         .filter(tag => this.context !== 'outbound' || tag !== this.dial.tag)
     },
-    dnsTransport(): boolean { return this.context === 'dns' && ['https', 'tls'].includes(this.dial.type) },
+    dnsTransport(): boolean { return this.context === 'dns' && isZapretDNSTransport(this.dial.type) },
     dnsTransportOptions(): { title: string; value: string }[] {
       const tags = this.dial.detour && !this.outTags.includes(this.dial.detour) ? [...this.outTags, this.dial.detour] : this.outTags
       return [{ title: String(this.$t('zapretDial.defaultTransport')), value: '' }, ...tags.map(value => ({ title: value, value }))]

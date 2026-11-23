@@ -29,6 +29,10 @@ export function boundDirect(rows: readonly { tag?: string; type?: string; zapret
   return row?.zapret?.enabled && row.zapret.outboundRef === tag ? row.zapret : undefined
 }
 
+export function isZapretDNSTransport(type: unknown): boolean {
+  return type === 'https' || type === 'tls' || type === 'quic' || type === 'h3'
+}
+
 export function zapretDialConflict(dial: Record<string, unknown>): boolean {
   return Boolean(dial.detour) || ['protect_path', 'routing_mark', 'bind_interface', 'netns', 'inet4_bind_address', 'inet6_bind_address']
     .some(field => dial[field] !== undefined)
