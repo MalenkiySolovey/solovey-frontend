@@ -1,7 +1,10 @@
 <template>
   <v-card :subtitle="$t('objects.dial')" style="background-color: inherit;">
     <v-row>
-      <v-col cols="12" sm="6" md="4" v-if="optionDetour">
+      <v-col cols="12" sm="6" md="4" v-if="dnsTransport">
+        <v-select v-model="dnsDetour" :items="dnsTransportOptions" :label="$t('zapretDial.transportVia')" hide-details />
+      </v-col>
+      <v-col cols="12" sm="6" md="4" v-else-if="optionDetour">
         <v-select
           hide-details
           :label="$t('dial.detourText')"
@@ -14,6 +17,28 @@
         :label="$t('dial.bindIf')"
         hide-details
         v-model="dial.bind_interface"></v-text-field>
+      </v-col>
+    </v-row>
+    <v-row v-if="dnsZapret">
+      <v-col cols="12">
+        <v-alert density="compact" variant="tonal" :type="dnsTransport && dnsZapretState === 'applied' ? 'info' : 'warning'">
+          {{ $t('zapretDial.uses', { direct: dnsZapret.outboundRef, strategy: dnsZapretName }) }}
+          {{ $t(dnsTransport ? `zapretDial.states.${dnsZapretState}` : 'zapretDial.unsupportedDNS') }}
+        </v-alert>
+      </v-col>
+    </v-row>
+    <v-row v-if="showZapretBinding">
+      <v-col cols="12" sm="4">
+        <v-switch v-model="zapretOn" :disabled="!zapretOn && (!zapretCatalog?.ready || zapretConflict)" color="primary" label="Zapret" hide-details />
+      </v-col>
+      <v-col v-if="zapretOn || dial.zapret?.strategyRef && dial.zapret.strategyRef !== 'none'" cols="12" sm="8">
+        <v-select v-model="zapretStrategy" :items="zapretChoices" :label="$t('zapretDial.strategy')" hide-details />
+      </v-col>
+      <v-col cols="12" class="text-caption">
+        <span>{{ $t('zapretDial.scope') }}</span>
+        <v-alert v-if="zapretConflict || !zapretCatalog?.ready || zapretOn && zapretStrategy === 'none'" type="warning" density="compact" variant="tonal" class="mt-2">
+          {{ $t(zapretConflict ? 'zapretDial.conflict' : !zapretCatalog?.ready ? 'zapretDial.unavailable' : 'zapretDial.selectStrategy') }}
+        </v-alert>
       </v-col>
     </v-row>
     <v-row>
@@ -142,7 +167,7 @@
         </template>
         <v-card>
           <v-list>
-            <v-list-item v-if="mode != 'client'">
+            <v-list-item v-if="mode != 'client' && !dnsTransport">
               <v-switch v-model="optionDetour" color="primary" :label="$t('listen.detour')" hide-details></v-switch>
             </v-list-item>
             <v-list-item v-if="mode != 'client'">

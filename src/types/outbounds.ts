@@ -3,6 +3,7 @@ import { oMultiplex } from "./multiplex"
 import { Transport } from "./transport"
 import { Dial } from "./dial"
 import type { MemoryQuantity, QUICTuning } from './consumerTuning'
+import type { ZapretBinding } from '@/features/zapretBinding'
 
 export const OutTypes = {
   Direct: 'direct',
@@ -54,7 +55,7 @@ export interface WgPeer {
   reserved?: number[]
 }
 
-export interface Direct extends OutboundBasics, Dial {}
+export interface Direct extends OutboundBasics, Dial { zapret?: ZapretBinding }
 
 export interface Call extends OutboundBasics, Dial {
   platform?: string

@@ -39,7 +39,7 @@
             <v-text-field v-model="dnsServer.path" :label="$t('transport.path')" hide-details />
           </v-col>
         </v-row>
-        <DialVue :dial="dnsServer" v-if="!WithoutDial.includes(dnsServer.type)" />
+        <DialVue :dial="dnsServer" context="dns" v-if="!WithoutDial.includes(dnsServer.type)" />
         <oTlsVue :outbound="dnsServer" :mandatory="true" v-if="HasTls.includes(dnsServer.type)" />
         <Headers :data="dnsServer" v-if="HasHeaders.includes(dnsServer.type)" />
         <v-row v-if="dnsServer.type === 'sdns'">

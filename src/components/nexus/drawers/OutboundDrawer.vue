@@ -64,7 +64,7 @@
       <Transport v-if="outbound.type !== outTypes.Mieru && Object.hasOwn(outbound,'transport')" :data="outbound"  direction="out" />
       <OutTLS v-if="outbound.type !== outTypes.MASQUE && Object.hasOwn(outbound,'tls')" :outbound="outbound" />
       <Multiplex v-if="![outTypes.TrustTunnel, outTypes.Sudoku].includes(outbound.type) && Object.hasOwn(outbound,'multiplex')" direction="out" :data="outbound" />
-      <Dial v-if="!NoDial.includes(outbound.type)" :dial="outbound" />
+      <Dial v-if="!NoDial.includes(outbound.type)" :dial="outbound" context="outbound" />
     </form-section>
 
     <form-section icon="lucide:globe" :title="$t('client.external')" :default-open="false">
