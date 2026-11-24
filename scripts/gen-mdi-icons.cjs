@@ -165,6 +165,7 @@ const USED_ICONS = [
   'mdi-shield-sync-outline',
   'mdi-speedometer',
   'mdi-star-plus',
+  'mdi-swap-vertical',
   'mdi-sync',
   'mdi-tag-multiple',
   'mdi-theme-light-dark',
