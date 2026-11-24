@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { boundDirect, hasZapretComponent, isZapretDNSTransport, isZapretSocketOwner, zapretOutboundConflict } from './zapretBinding'
+import { boundDirect, hasZapretComponent, isZapretDNSTransport, isZapretSocketOwner, zapretDialScope, zapretOutboundConflict } from './zapretBinding'
 import en from '@/locales/en/zapretDial'
 import ru from '@/locales/ru/zapretDial'
 
@@ -56,5 +56,30 @@ describe('Zapret Dial Options', () => {
   it('uses one explicit detour control for plain and encrypted remote DNS', () => {
     for (const type of ['tcp', 'udp', 'quic', 'h3', 'https', 'tls']) expect(isZapretDNSTransport(type)).toBe(true)
     for (const type of ['local', 'hosts', 'fakeip', 'resolved', undefined]) expect(isZapretDNSTransport(type)).toBe(false)
+  })
+
+  it('projects the actual outer network, not the logical proxy network', () => {
+    const endpoint = { server: 'proxy.example.test', server_port: 443 }
+    for (const type of ['vless', 'vmess', 'trojan', 'anytls', 'shadowtls', 'ssh']) {
+      expect(zapretDialScope({ ...endpoint, type, network: 'udp' })).toBe('zapretDial.outerProxyTCP')
+    }
+    for (const type of ['vless', 'vmess', 'trojan']) {
+      expect(zapretDialScope({ ...endpoint, type, transport: {} })).toBe('zapretDial.outerProxyTCP')
+      expect(zapretDialScope({ ...endpoint, type, transport: { type: 'ws' } })).toBe('zapretDial.outerProxyTCP')
+      expect(zapretDialScope({ ...endpoint, type, transport: { type: 'quic' } })).toBe('zapretDial.outerProxyQUIC')
+      expect(zapretOutboundConflict({ ...endpoint, type, transport: { type: 'xhttp' } })).toBe('zapretDial.variableTransport')
+      expect(zapretOutboundConflict({ ...endpoint, type, transport: { path: '/socket' } })).toBe('zapretDial.variableTransport')
+    }
+    expect(zapretDialScope({ ...endpoint, type: 'tuic', network: 'tcp' })).toBe('zapretDial.outerProxyQUIC')
+    const socks = { ...endpoint, type: 'socks', network: 'tcp' }
+    expect(zapretOutboundConflict(socks)).toBe('zapretDial.socksRelay')
+    expect(zapretDialScope(socks)).toBeUndefined()
+    expect(zapretDialScope({ ...socks, version: '4a' })).toBe('zapretDial.outerProxyTCP')
+    expect(zapretDialScope({ ...socks, udp_over_tcp: true })).toBe('zapretDial.outerProxyTCP')
+    const shadowsocks = { ...endpoint, type: 'shadowsocks', network: 'tcp' }
+    expect(zapretDialScope(shadowsocks)).toBe('zapretDial.outerProxyTCPUDP')
+    expect(zapretDialScope({ ...shadowsocks, multiplex: { enabled: true } })).toBe('zapretDial.outerProxyTCP')
+    expect(zapretDialScope({ ...shadowsocks, udp_over_tcp: { enabled: true } })).toBe('zapretDial.outerProxyTCP')
+    expect(zapretOutboundConflict({ ...shadowsocks, plugin: 'v2ray-plugin' })).toBe('zapretDial.shadowsocksPlugin')
   })
 })

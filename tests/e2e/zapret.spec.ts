@@ -58,6 +58,9 @@ for (const mode of ['classic', 'nexus']) {
     const hy2 = 'qualified-hysteria2'
     const hopping = 'port-hopping-hysteria2'
     const selector = 'qualified-proxy-group'
+    const vless = 'qualified-vless-tcp'
+    const tuic = 'qualified-tuic-udp'
+    const socks = 'negotiated-socks5-relay'
     const strategy = 'outer-strategy'
     let enabled = false
     let ready = true
@@ -65,16 +68,21 @@ for (const mode of ['classic', 'nexus']) {
       const response = await route.fetch()
       const body = await response.json()
       // The Backend browser fixture omits QUIC. The installed provider tests
-      // prove the Hysteria2 socket; exercise its advertised editor state here.
-      const quic = body.obj?.capabilities?.facts?.find((fact: { category: string; type: string }) =>
-        fact.category === 'outbounds' && fact.type === 'hysteria2')
-      if (quic) Object.assign(quic, { registered: true, compiled: true, available: true })
+      // prove the Hysteria2 and TUIC sockets; exercise their editor states here.
+      for (const fact of body.obj?.capabilities?.facts ?? []) {
+        if (fact.category === 'outbounds' && ['hysteria2', 'tuic'].includes(fact.type)) {
+          Object.assign(fact, { registered: true, compiled: true, available: true })
+        }
+      }
       if (Array.isArray(body.obj?.outbounds)) body.obj.outbounds.push(
         { id: 98_001, tag: http, type: 'http', server: '203.0.113.2', server_port: 19080,
           zapret: { outboundRef: http, strategyRef: strategy, enabled } },
         { id: 98_002, tag: hy2, type: 'hysteria2', server: '2001:db8:2::2', server_port: 19452, tls: { enabled: true } },
         { id: 98_003, tag: hopping, type: 'hysteria2', server: '2001:db8:2::2', server_port: 19452, server_ports: ['19452:19455'], tls: { enabled: true } },
-        { id: 98_004, tag: selector, type: 'selector', outbounds: [http, hy2], default: http },
+        { id: 98_004, tag: selector, type: 'selector', outbounds: [http, hy2, vless, tuic], default: http },
+        { id: 98_005, tag: vless, type: 'vless', server: '203.0.113.2', server_port: 19081, network: 'udp' },
+        { id: 98_006, tag: tuic, type: 'tuic', server: '203.0.113.2', server_port: 19452, network: 'tcp', tls: { enabled: true } },
+        { id: 98_007, tag: socks, type: 'socks', server: '203.0.113.2', server_port: 1080, network: 'tcp', version: '5' },
       )
       await route.fulfill({ response, json: body })
     })
@@ -89,7 +97,7 @@ for (const mode of ['classic', 'nexus']) {
       const saved = JSON.parse(form.get('data') ?? '{}')
       saves.push(saved)
       if (saved.tag === http) enabled = saved.zapret.enabled
-      await route.fulfill({ json: { success: true, msg: '', obj: null } })
+      await route.fulfill({ json: { success: true, msg: '', obj: {} } })
     })
     const editor = page.getByRole('dialog')
     const toggle = editor.getByLabel('Zapret', { exact: true })
@@ -127,6 +135,20 @@ for (const mode of ['classic', 'nexus']) {
     await edit(hopping)
     await expect(toggle).toBeDisabled()
     await expect(editor.getByText(/cannot admit a hopping port range/)).toBeVisible()
+    for (const [tag, port, scope] of [[vless, 19081, 'Outer TCP only'], [tuic, 19452, 'Outer QUIC/UDP only']] as const) {
+      await edit(tag)
+      await expect(toggle).toBeEnabled()
+      await expect(editor.getByText(new RegExp(`^${scope}`))).toBeVisible()
+      await toggle.check()
+      await editor.getByRole('combobox', { name: 'Zapret strategy', exact: true }).press('Enter')
+      await page.getByRole('option', { name: 'Outer strategy', exact: true }).click()
+      await editor.getByRole('button', { name: 'Save', exact: true }).click()
+      await expect.poll(() => saves.at(-1)).toMatchObject({ tag, server_port: port, zapret: { outboundRef: tag, strategyRef: strategy, enabled: true } })
+      if (tag === vless) expect(saves.at(-1)).not.toHaveProperty('transport')
+    }
+    await edit(socks)
+    await expect(toggle).toBeDisabled()
+    await expect(editor.getByText(/SOCKS5 can negotiate a separate UDP relay/)).toBeVisible()
     await edit(selector)
     await expect(toggle).toHaveCount(0)
   })

@@ -36,7 +36,7 @@
         <v-select v-model="zapretStrategy" :items="zapretChoices" :label="$t('zapretDial.strategy')" hide-details />
       </v-col>
       <v-col cols="12" class="text-caption">
-        <span>{{ $t(zapretScope) }}</span>
+        <span v-if="zapretScope">{{ $t(zapretScope) }}</span>
         <v-alert v-if="zapretConflict || !zapretCatalog?.ready || zapretOn && zapretStrategy === 'none'" type="warning" density="compact" variant="tonal" class="mt-2">
           {{ $t(zapretConflict ?? (!zapretCatalog?.ready ? 'zapretDial.unavailable' : 'zapretDial.selectStrategy')) }}
         </v-alert>

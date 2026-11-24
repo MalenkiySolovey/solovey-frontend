@@ -1,7 +1,7 @@
 import { defineComponent } from 'vue'
 import Data from '@/store/modules/data'
 import DomainResolver from '@/components/fields/DomainResolver.vue'
-import { boundDirect, hasZapretComponent, isZapretDNSTransport, isZapretSocketOwner, readZapretSummary, zapretOutboundConflict, type ZapretCatalogSummary } from '@/features/zapretBinding'
+import { boundDirect, hasZapretComponent, isZapretDNSTransport, isZapretSocketOwner, readZapretSummary, zapretDialScope, zapretOutboundConflict, type ZapretCatalogSummary } from '@/features/zapretBinding'
 
 export default defineComponent({
   props: ['dial', 'mode', 'context'],
@@ -29,13 +29,7 @@ export default defineComponent({
     hasZapret(): boolean { return hasZapretComponent() },
     showZapretBinding(): boolean { return this.zapretEditor && (this.hasZapret || Boolean(this.dial.zapret)) },
     zapretConflict() { return zapretOutboundConflict(this.dial) },
-    zapretScope(): string {
-      switch (this.dial.type) {
-        case 'http': return 'zapretDial.outerTCP'
-        case 'hysteria2': return 'zapretDial.outerQUIC'
-        default: return 'zapretDial.scope'
-      }
-    },
+    zapretScope(): string | undefined { return zapretDialScope(this.dial) },
     zapretOn: {
       get(): boolean { return this.dial.zapret?.enabled === true },
       set(enabled: boolean) {
