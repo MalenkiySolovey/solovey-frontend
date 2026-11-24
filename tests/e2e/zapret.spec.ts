@@ -24,7 +24,7 @@ for (const mode of ['classic', 'nexus']) {
       })
       await route.fulfill({ response, json: body })
     })
-    await page.route(`**/${strategies}`, route => route.fulfill({ json: { success: true, obj: {
+    await page.route(`**/${strategies}`, route => route.fulfill({ json: { success: true, msg: '', obj: {
       catalog: { records: { [strategy]: { name: 'Resolver strategy' } } }, ready: true,
       references: [{ outboundRef: direct, strategyRef: strategy, enabled, state: enabled ? 'applied' : 'off' }],
     } } }))
