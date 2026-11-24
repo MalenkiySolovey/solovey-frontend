@@ -5,6 +5,51 @@ import { csrfToken, enableComponent, login, mutationHeaders } from './helpers'
 const strategies = 'api/components/zapret/strategies'
 
 for (const mode of ['classic', 'nexus']) {
+  test(`${mode} preserves ordered Circular variants through the native editor`, async ({ page }) => {
+    await page.addInitScript(layout => window.localStorage.setItem('sui:ui:mode', layout), mode)
+    await login(page)
+    await enableComponent(page, 'zapret')
+    await page.goto('zapret')
+    await page.getByRole('button', { name: 'New strategy', exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    const name = `${mode} Circular round trip`
+    await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill(name)
+    await dialog.getByRole('button', { name: 'HTTP/TCP preset', exact: true }).click()
+    await dialog.getByRole('combobox', { name: 'TCP action', exact: true }).press('Enter')
+    await page.getByRole('option', { name: 'Circular', exact: true }).click()
+    const failures = dialog.getByRole('spinbutton', { name: 'Failures before rotation', exact: true })
+    const splits = dialog.getByRole('textbox', { name: 'Split bytes (ordered)', exact: true })
+    await failures.fill('2')
+    await splits.fill('17,9')
+    const rawButton = dialog.getByRole('button', { name: 'Native options', exact: true })
+    const native = dialog.getByRole('textbox', { name: 'Native options', exact: true })
+    await rawButton.click()
+    await expect(native).toHaveValue(/--in-range=-n32[\s\S]*circular:fails=2[\s\S]*--in-range=x[\s\S]*multisplit:pos=17:strategy=1[\s\S]*multisplit:pos=9:strategy=2/)
+    const updated = (await native.inputValue()).replace('circular:fails=2', 'circular:fails=3')
+      .replace('multisplit:pos=17:strategy=1', 'multisplit:pos=23:strategy=1')
+    await native.fill(updated)
+    await dialog.getByRole('button', { name: 'Profiles', exact: true }).click()
+    await expect(failures).toHaveValue('3')
+    await expect(splits).toHaveValue('23,9')
+    await rawButton.click()
+    await expect(native).toHaveValue(updated)
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click()
+
+    const row = page.getByRole('listitem').filter({ has: page.getByText(name, { exact: true }) })
+    await expect(row).toBeVisible()
+    const file = page.waitForEvent('download')
+    await row.getByRole('button', { name: 'Export', exact: true }).click()
+    const transfer = JSON.parse(await fs.readFile(await (await file).path(), 'utf8'))
+    expect(transfer.strategy.raw).toBe(updated)
+    expect(transfer.strategy.definition.needsReturn).toBe(true)
+    expect(transfer.strategy.definition.profiles[0].circular).toEqual({ failures: 3, splits: [23, 9] })
+    await row.getByRole('button', { name: 'Delete strategy', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Delete strategy', exact: true }).click()
+    await expect(row).toHaveCount(0)
+  })
+}
+
+for (const mode of ['classic', 'nexus']) {
   test(`${mode} binds proxy outer sockets without adding a Selector binding`, async ({ page }) => {
     await page.addInitScript(layout => window.localStorage.setItem('sui:ui:mode', layout), mode)
     await login(page)
