@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test'
 import { enableComponent, login } from './helpers'
 
 for (const mode of ['classic', 'nexus']) {
-  test(`${mode} keeps pinned HTTP actions in order through both editors and transfer`, async ({ page }, info) => {
+  test(`${mode} keeps ordered HTTP actions and bounded port ranges through both editors and transfer`, async ({ page }, info) => {
     await page.addInitScript(layout => window.localStorage.setItem('sui:ui:mode', layout), mode)
     await login(page)
     await enableComponent(page, 'zapret')
@@ -27,10 +27,16 @@ for (const mode of ['classic', 'nexus']) {
     const rawButton = dialog.getByRole('button', { name: 'Native options', exact: true })
     await rawButton.click()
     await expect(raw).toHaveValue(/--lua-desync=http_hostcase:spell=hOsT\n--lua-desync=http_domcase\n/)
-    const original = (await raw.inputValue()).replace('spell=hOsT', 'spell=HOST') + '\n'
+    const extra = Array.from({ length: 17 }, (_, i) => `--new=extra-${i + 1} --filter-tcp=${80 + i}\n`).join('')
+    const original = (await raw.inputValue()).replace('spell=hOsT', 'spell=HOST')
+      .replace(/^--filter-tcp=80$/m, '--filter-tcp=80-119,65534-65535') + '\n' + extra
     await raw.fill(original)
     await dialog.getByRole('button', { name: 'Profiles', exact: true }).click()
     await expect(spelling).toHaveValue('HOST')
+    const profileIDs = dialog.getByRole('textbox', { name: 'Profile ID', exact: true })
+    await expect(profileIDs).toHaveCount(18)
+    await expect(profileIDs.last()).toHaveValue('extra-17')
+    await expect(dialog.getByRole('button', { name: 'Add profile', exact: true })).toBeEnabled()
     await rawButton.click()
     await expect(raw).toHaveValue(original)
     await dialog.getByRole('button', { name: 'Save', exact: true }).click()
@@ -43,6 +49,7 @@ for (const mode of ['classic', 'nexus']) {
     const transfer = JSON.parse(bytes.toString('utf8'))
     expect(transfer.strategy.raw).toBe(original)
     expect(transfer.strategy.definition.profiles[0].httpActions).toEqual([{ name: 'http_hostcase', spell: 'HOST' }, { name: 'http_domcase' }])
+    expect(transfer.strategy.definition.profiles[0].ports).toEqual([...Array.from({ length: 40 }, (_, i) => 80 + i), 65534, 65535])
 
     await row.getByRole('button', { name: 'Delete strategy', exact: true }).click()
     await dialog.getByRole('button', { name: 'Delete strategy', exact: true }).click()
