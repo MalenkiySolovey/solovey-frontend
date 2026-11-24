@@ -19,6 +19,11 @@ for (const mode of ['classic', 'nexus']) {
     await page.route(/\/api\/load(?:\?|$)/, async route => {
       const response = await route.fetch()
       const body = await response.json()
+      // The Backend browser fixture omits QUIC. The installed provider tests
+      // prove the Hysteria2 socket; exercise its advertised editor state here.
+      const quic = body.obj?.capabilities?.facts?.find((fact: { category: string; type: string }) =>
+        fact.category === 'outbounds' && fact.type === 'hysteria2')
+      if (quic) Object.assign(quic, { registered: true, compiled: true, available: true })
       if (Array.isArray(body.obj?.outbounds)) body.obj.outbounds.push(
         { id: 98_001, tag: http, type: 'http', server: '203.0.113.2', server_port: 19080,
           zapret: { outboundRef: http, strategyRef: strategy, enabled } },
@@ -38,7 +43,7 @@ for (const mode of ['classic', 'nexus']) {
       expect(form.get('action')).toBe('edit')
       const saved = JSON.parse(form.get('data') ?? '{}')
       saves.push(saved)
-      enabled = saved.zapret.enabled
+      if (saved.tag === http) enabled = saved.zapret.enabled
       await route.fulfill({ json: { success: true, msg: '', obj: null } })
     })
     const editor = page.getByRole('dialog')
@@ -69,6 +74,11 @@ for (const mode of ['classic', 'nexus']) {
     await edit(hy2)
     await expect(toggle).toBeEnabled()
     await expect(editor.getByText(/Outer QUIC\/UDP connection to the Hysteria2 server only/)).toBeVisible()
+    await toggle.check()
+    await editor.getByRole('combobox', { name: 'Zapret strategy', exact: true }).press('Enter')
+    await page.getByRole('option', { name: 'Outer strategy', exact: true }).click()
+    await editor.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect.poll(() => saves.at(-1)).toMatchObject({ tag: hy2, server_port: 19452, zapret: { outboundRef: hy2, strategyRef: strategy, enabled: true } })
     await edit(hopping)
     await expect(toggle).toBeDisabled()
     await expect(editor.getByText(/cannot admit a hopping port range/)).toBeVisible()
