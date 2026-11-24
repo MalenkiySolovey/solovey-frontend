@@ -1,7 +1,7 @@
 import { defineComponent } from 'vue'
 import Data from '@/store/modules/data'
 import DomainResolver from '@/components/fields/DomainResolver.vue'
-import { boundDirect, hasZapretComponent, isZapretDNSTransport, readZapretSummary, zapretDialConflict, type ZapretCatalogSummary } from '@/features/zapretBinding'
+import { boundDirect, hasZapretComponent, isZapretDNSTransport, isZapretSocketOwner, readZapretSummary, zapretOutboundConflict, type ZapretCatalogSummary } from '@/features/zapretBinding'
 
 export default defineComponent({
   props: ['dial', 'mode', 'context'],
@@ -25,10 +25,17 @@ export default defineComponent({
       get(): string { return this.dial.detour ?? '' },
       set(value: string) { if (value) this.dial.detour = value; else delete this.dial.detour },
     },
-    directEditor(): boolean { return this.context === 'outbound' && this.dial.type === 'direct' },
+    zapretEditor(): boolean { return this.context === 'outbound' && isZapretSocketOwner(this.dial.type) },
     hasZapret(): boolean { return hasZapretComponent() },
-    showZapretBinding(): boolean { return this.directEditor && (this.hasZapret || Boolean(this.dial.zapret)) },
-    zapretConflict(): boolean { return zapretDialConflict(this.dial) },
+    showZapretBinding(): boolean { return this.zapretEditor && (this.hasZapret || Boolean(this.dial.zapret)) },
+    zapretConflict() { return zapretOutboundConflict(this.dial) },
+    zapretScope(): string {
+      switch (this.dial.type) {
+        case 'http': return 'zapretDial.outerTCP'
+        case 'hysteria2': return 'zapretDial.outerQUIC'
+        default: return 'zapretDial.scope'
+      }
+    },
     zapretOn: {
       get(): boolean { return this.dial.zapret?.enabled === true },
       set(enabled: boolean) {
@@ -64,7 +71,7 @@ export default defineComponent({
         default: return 'zapretDial.requiresTCP'
       }
     },
-    shouldLoadZapret(): boolean { return this.hasZapret && (this.directEditor || Boolean(this.dnsZapret)) },
+    shouldLoadZapret(): boolean { return this.hasZapret && (this.zapretEditor || Boolean(this.dnsZapret)) },
     networkTypes() { return ['wifi', 'cellular', 'ethernet', 'other'] },
     networkStrategies() { return ['fallback', 'hybrid'] },
     networkConflict(): boolean {
@@ -225,7 +232,7 @@ export default defineComponent({
       },
     },
     'dial.tag'(tag: string) {
-      if (this.directEditor && this.dial.zapret) this.dial.zapret.outboundRef = tag
+      if (this.zapretEditor && this.dial.zapret) this.dial.zapret.outboundRef = tag
     },
   },
   components: { DomainResolver }

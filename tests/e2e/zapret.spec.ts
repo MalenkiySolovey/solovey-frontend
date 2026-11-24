@@ -5,6 +5,87 @@ import { csrfToken, enableComponent, login, mutationHeaders } from './helpers'
 const strategies = 'api/components/zapret/strategies'
 
 for (const mode of ['classic', 'nexus']) {
+  test(`${mode} binds proxy outer sockets without adding a Selector binding`, async ({ page }) => {
+    await page.addInitScript(layout => window.localStorage.setItem('sui:ui:mode', layout), mode)
+    await login(page)
+    await enableComponent(page, 'zapret')
+    const http = 'qualified-http-proxy'
+    const hy2 = 'qualified-hysteria2'
+    const hopping = 'port-hopping-hysteria2'
+    const selector = 'qualified-proxy-group'
+    const strategy = 'outer-strategy'
+    let enabled = false
+    let ready = true
+    await page.route(/\/api\/load(?:\?|$)/, async route => {
+      const response = await route.fetch()
+      const body = await response.json()
+      // The Backend browser fixture omits QUIC. The installed provider tests
+      // prove the Hysteria2 socket; exercise its advertised editor state here.
+      const quic = body.obj?.capabilities?.facts?.find((fact: { category: string; type: string }) =>
+        fact.category === 'outbounds' && fact.type === 'hysteria2')
+      if (quic) Object.assign(quic, { registered: true, compiled: true, available: true })
+      if (Array.isArray(body.obj?.outbounds)) body.obj.outbounds.push(
+        { id: 98_001, tag: http, type: 'http', server: '203.0.113.2', server_port: 19080,
+          zapret: { outboundRef: http, strategyRef: strategy, enabled } },
+        { id: 98_002, tag: hy2, type: 'hysteria2', server: '2001:db8:2::2', server_port: 19452, tls: { enabled: true } },
+        { id: 98_003, tag: hopping, type: 'hysteria2', server: '2001:db8:2::2', server_port: 19452, server_ports: ['19452:19455'], tls: { enabled: true } },
+        { id: 98_004, tag: selector, type: 'selector', outbounds: [http, hy2], default: http },
+      )
+      await route.fulfill({ response, json: body })
+    })
+    await page.route(`**/${strategies}`, route => route.fulfill({ json: { success: true, msg: '', obj: {
+      ready, catalog: { records: { [strategy]: { name: 'Outer strategy' } } }, references: [],
+    } } }))
+    const saves: unknown[] = []
+    await page.route('**/api/save', async route => {
+      const form = new URLSearchParams(route.request().postData() ?? '')
+      expect(form.get('object')).toBe('outbounds')
+      expect(form.get('action')).toBe('edit')
+      const saved = JSON.parse(form.get('data') ?? '{}')
+      saves.push(saved)
+      if (saved.tag === http) enabled = saved.zapret.enabled
+      await route.fulfill({ json: { success: true, msg: '', obj: null } })
+    })
+    const editor = page.getByRole('dialog')
+    const toggle = editor.getByLabel('Zapret', { exact: true })
+    const edit = async (tag: string) => {
+      await page.goto('outbounds')
+      const row = (mode === 'classic' ? page.locator('.outbounds__card') : page.getByRole('row'))
+        .filter({ has: page.getByText(tag, { exact: true }) })
+      await row.getByRole('button', { name: 'Edit', exact: true }).click()
+    }
+
+    await edit(http)
+    await expect(toggle).toBeEnabled()
+    await expect(editor.getByText(/Outer TCP connection to the HTTP proxy only/)).toBeVisible()
+    await toggle.check()
+    await editor.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect.poll(() => saves.at(-1)).toMatchObject({ tag: http, server_port: 19080, zapret: { outboundRef: http, strategyRef: strategy, enabled: true } })
+
+    ready = false
+    await edit(http)
+    await expect(toggle).toBeChecked()
+    await expect(editor.getByText(/An existing binding can still be turned off/)).toBeVisible()
+    await toggle.uncheck()
+    await editor.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect.poll(() => saves.at(-1)).toMatchObject({ tag: http, server_port: 19080, zapret: { outboundRef: http, strategyRef: strategy, enabled: false } })
+
+    ready = true
+    await edit(hy2)
+    await expect(toggle).toBeEnabled()
+    await expect(editor.getByText(/Outer QUIC\/UDP connection to the Hysteria2 server only/)).toBeVisible()
+    await toggle.check()
+    await editor.getByRole('combobox', { name: 'Zapret strategy', exact: true }).press('Enter')
+    await page.getByRole('option', { name: 'Outer strategy', exact: true }).click()
+    await editor.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect.poll(() => saves.at(-1)).toMatchObject({ tag: hy2, server_port: 19452, zapret: { outboundRef: hy2, strategyRef: strategy, enabled: true } })
+    await edit(hopping)
+    await expect(toggle).toBeDisabled()
+    await expect(editor.getByText(/cannot admit a hopping port range/)).toBeVisible()
+    await edit(selector)
+    await expect(toggle).toHaveCount(0)
+  })
+
   test(`${mode} preserves Direct source binds and exposes plain DNS detours`, async ({ page }) => {
     await page.addInitScript(layout => window.localStorage.setItem('sui:ui:mode', layout), mode)
     await login(page)

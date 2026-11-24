@@ -142,6 +142,7 @@ export interface MASQUE extends OutboundBasics, Dial {
 }
 
 export interface HTTP extends OutboundBasics, Dial {
+  zapret?: ZapretBinding
   server: string
   server_port: number
   username?: string
@@ -270,6 +271,7 @@ export interface Hysteria2Realm {
 }
 
 export interface Hysteria2 extends OutboundBasics, Dial, QUICTuning {
+  zapret?: ZapretBinding
   realm?: Hysteria2Realm
   bbr_profile?: string
   hop_interval_max?: string

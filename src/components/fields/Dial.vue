@@ -30,15 +30,15 @@
     </v-row>
     <v-row v-if="showZapretBinding">
       <v-col cols="12" sm="4">
-        <v-switch v-model="zapretOn" :disabled="!zapretOn && (!zapretCatalog?.ready || zapretConflict)" color="primary" label="Zapret" hide-details />
+        <v-switch v-model="zapretOn" :disabled="!zapretOn && (!zapretCatalog?.ready || Boolean(zapretConflict))" color="primary" label="Zapret" hide-details />
       </v-col>
       <v-col v-if="zapretOn || dial.zapret?.strategyRef && dial.zapret.strategyRef !== 'none'" cols="12" sm="8">
         <v-select v-model="zapretStrategy" :items="zapretChoices" :label="$t('zapretDial.strategy')" hide-details />
       </v-col>
       <v-col cols="12" class="text-caption">
-        <span>{{ $t('zapretDial.scope') }}</span>
+        <span>{{ $t(zapretScope) }}</span>
         <v-alert v-if="zapretConflict || !zapretCatalog?.ready || zapretOn && zapretStrategy === 'none'" type="warning" density="compact" variant="tonal" class="mt-2">
-          {{ $t(zapretConflict ? 'zapretDial.conflict' : !zapretCatalog?.ready ? 'zapretDial.unavailable' : 'zapretDial.selectStrategy') }}
+          {{ $t(zapretConflict ?? (!zapretCatalog?.ready ? 'zapretDial.unavailable' : 'zapretDial.selectStrategy')) }}
         </v-alert>
       </v-col>
     </v-row>
