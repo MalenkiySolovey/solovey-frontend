@@ -30,10 +30,10 @@ export function boundDirect(rows: readonly { tag?: string; type?: string; zapret
 }
 
 export function isZapretDNSTransport(type: unknown): boolean {
-  return type === 'https' || type === 'tls' || type === 'quic' || type === 'h3'
+  return type === 'tcp' || type === 'udp' || type === 'https' || type === 'tls' || type === 'quic' || type === 'h3'
 }
 
 export function zapretDialConflict(dial: Record<string, unknown>): boolean {
-  return Boolean(dial.detour) || ['protect_path', 'routing_mark', 'bind_interface', 'netns', 'inet4_bind_address', 'inet6_bind_address']
+  return Boolean(dial.detour) || ['protect_path', 'routing_mark', 'netns']
     .some(field => dial[field] !== undefined)
 }
