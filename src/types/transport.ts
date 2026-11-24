@@ -12,6 +12,10 @@ export type TrspType = typeof TrspTypes[keyof typeof TrspTypes]
 
 export type Transport = HTTP|WebSocket|QUIC|gRPC|HTTPUpgrade|XHTTP|mKCP
 
+export function isNativeTCPTransportDraft(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) && Object.keys(value).length === 0
+}
+
 interface TransportBasics {
   type: TrspType
 }

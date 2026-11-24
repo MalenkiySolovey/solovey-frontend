@@ -1,6 +1,7 @@
 import { defineComponent } from 'vue'
 import { coreConfigContract } from '@/types/coreConfigContract'
 import { OutTypes, createOutbound, nativeOutboundGroupValid, NativeLimiterTypes, nativeLimiterValid } from '@/types/outbounds'
+import { isNativeTCPTransportDraft } from '@/types/transport'
 import RandomUtil from '@/plugins/randomUtil'
 import Dial from '@/components/fields/Dial.vue'
 import Multiplex from '@/components/fields/Multiplex.vue'
@@ -98,7 +99,10 @@ export default defineComponent({
       // save data
       this.loading = true
       try {
-        const success = await Data().save("outbounds", this.$props.id == 0 ? "new" : "edit", serializeOutboundCredentialDraft(this.outbound))
+        const draft = serializeOutboundCredentialDraft(this.outbound)
+        // Native TCP has no transport object in the provider configuration.
+        if ([OutTypes.VLESS, OutTypes.VMess, OutTypes.Trojan].includes(draft.type) && isNativeTCPTransportDraft(draft.transport)) delete draft.transport
+        const success = await Data().save("outbounds", this.$props.id == 0 ? "new" : "edit", draft)
         if (success) this.closeModal()
       } finally {
         this.loading = false
