@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { boundDirect, hasZapretComponent, isZapretDNSTransport, zapretDialConflict } from './zapretBinding'
+import { boundDirect, hasZapretComponent, isZapretDNSTransport, isZapretSocketOwner, zapretOutboundConflict } from './zapretBinding'
+import en from '@/locales/en/zapretDial'
+import ru from '@/locales/ru/zapretDial'
 
 const fixture = vi.hoisted(() => ({ components: [] as object[] }))
 vi.mock('@/store/modules/data', () => ({ default: () => fixture }))
@@ -25,17 +27,30 @@ describe('Zapret Dial Options', () => {
   })
 
   it('does not erase conflicting explicit dial intent', () => {
-    expect(zapretDialConflict({ detour: '' })).toBe(false)
-    expect(zapretDialConflict({ detour: 'proxy' })).toBe(true)
-    expect(zapretDialConflict({ routing_mark: 0 })).toBe(true)
-    expect(zapretDialConflict({ netns: 'separate' })).toBe(true)
-    expect(zapretDialConflict({ protect_path: '/run/custom.sock' })).toBe(true)
+    expect(zapretOutboundConflict({ type: 'direct', detour: '' })).toBeUndefined()
+    expect(zapretOutboundConflict({ type: 'direct', detour: 'proxy' })).toBe('zapretDial.detoured')
+    for (const intent of [{ routing_mark: 0 }, { netns: 'separate' }, { protect_path: '/run/custom.sock' }]) {
+      expect(zapretOutboundConflict({ type: 'direct', ...intent })).toBe('zapretDial.conflict')
+    }
   })
 
   it('lets the installed Host validate source addresses and interface together', () => {
-    const bound = { bind_interface: 'eth0', inet4_bind_address: '198.18.0.5', inet6_bind_address: '2001:db8:1::5' }
-    expect(zapretDialConflict(bound)).toBe(false)
-    expect(zapretDialConflict({ ...bound, routing_mark: 12 })).toBe(true)
+    const bound = { type: 'direct', bind_interface: 'eth0', inet4_bind_address: '198.18.0.5', inet6_bind_address: '2001:db8:1::5' }
+    expect(zapretOutboundConflict(bound)).toBeUndefined()
+    expect(zapretOutboundConflict({ ...bound, routing_mark: 12 })).toBe('zapretDial.conflict')
+  })
+
+  it('keeps the binding on fixed proxy sockets, including their exact endpoint requirements', () => {
+    const http = { type: 'http', server: 'proxy.example.test', server_port: 443 }
+    const hy2 = { ...http, type: 'hysteria2' }
+    expect(zapretOutboundConflict(http)).toBeUndefined()
+    expect(zapretOutboundConflict({ ...hy2, server_ports: [], realm: null })).toBeUndefined()
+    expect(zapretOutboundConflict({ ...http, detour: 'underlay' })).toBe('zapretDial.detoured')
+    expect(zapretOutboundConflict({ ...hy2, server_ports: ['443:445'] })).toBe('zapretDial.portHopping')
+    expect(zapretOutboundConflict({ ...hy2, realm: {} })).toBe('zapretDial.realm')
+    expect(zapretOutboundConflict({ ...http, server_port: '' })).toBe('zapretDial.fixedEndpoint')
+    for (const type of ['selector', 'urltest', 'failover', 'wireguard', undefined]) expect(isZapretSocketOwner(type)).toBe(false)
+    expect(Object.keys(ru.zapretDial).sort()).toEqual(Object.keys(en.zapretDial).sort())
   })
 
   it('uses one explicit detour control for plain and encrypted remote DNS', () => {

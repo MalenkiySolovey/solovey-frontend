@@ -7,6 +7,9 @@ export interface ZapretBinding {
   strategyRef: string
 }
 
+export type ZapretOutboundConflict = 'zapretDial.detoured' | 'zapretDial.conflict' | 'zapretDial.realm' |
+  'zapretDial.portHopping' | 'zapretDial.fixedEndpoint' | 'zapretDial.noSocket'
+
 export interface ZapretCatalogSummary {
   ready: boolean
   catalog: { records: Record<string, { name: string }> }
@@ -33,7 +36,20 @@ export function isZapretDNSTransport(type: unknown): boolean {
   return type === 'tcp' || type === 'udp' || type === 'https' || type === 'tls' || type === 'quic' || type === 'h3'
 }
 
-export function zapretDialConflict(dial: Record<string, unknown>): boolean {
-  return Boolean(dial.detour) || ['protect_path', 'routing_mark', 'netns']
-    .some(field => dial[field] !== undefined)
+export function isZapretSocketOwner(type: unknown): type is 'direct' | 'http' | 'hysteria2' {
+  return type === 'direct' || type === 'http' || type === 'hysteria2'
+}
+
+export function zapretOutboundConflict(dial: Record<string, unknown>): ZapretOutboundConflict | undefined {
+  if (!isZapretSocketOwner(dial.type)) return 'zapretDial.noSocket'
+  if (dial.detour) return 'zapretDial.detoured'
+  if (['protect_path', 'routing_mark', 'netns'].some(field => dial[field] !== undefined)) return 'zapretDial.conflict'
+  if (dial.type === 'hysteria2') {
+    if (dial.realm != null) return 'zapretDial.realm'
+    if (Array.isArray(dial.server_ports) && dial.server_ports.length > 0) return 'zapretDial.portHopping'
+  }
+  if (dial.type !== 'direct') {
+    const port = typeof dial.server_port === 'number' || typeof dial.server_port === 'string' ? Number(dial.server_port) : NaN
+    if (typeof dial.server !== 'string' || !dial.server.trim() || !Number.isInteger(port) || port < 1 || port > 65535) return 'zapretDial.fixedEndpoint'
+  }
 }

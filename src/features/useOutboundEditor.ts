@@ -39,7 +39,7 @@ import Data from '@/store/modules/data'
 import CapabilitySurface from '@/components/fields/CapabilitySurface.vue'
 import SaveGuardNotice from '@/components/fields/SaveGuardNotice.vue'
 import { entitySaveReasons, type SaveReason } from './entitySaveReview'
-import { zapretDialConflict } from './zapretBinding'
+import { zapretOutboundConflict } from './zapretBinding'
 import { capabilityEditState, capabilityTypeChoices, type CapabilityChoice, type CapabilityEditState } from '@/types/capabilityEditors'
 export default defineComponent({
   props: ['visible', 'data', 'id', 'tags'],
@@ -157,8 +157,12 @@ export default defineComponent({
       const reasons = entitySaveReasons({ identity: this.outbound.tag, port: this.outbound.server_port, requiresPort: this.requiresServer && !rangeOnly, pending: this.loading, capability: this.capabilityState, credentialInvalid, missingRequiredTls: this.outbound.type === OutTypes.TrustTunnel && !this.outbound.tls?.enabled })
       if (!nativeOutboundGroupValid(this.outbound)) reasons.push('nativeOutbound.groupInvalid')
       if (!nativeLimiterValid(this.outbound) || !this.limiterEditorValid) reasons.push('nativeLimiter.invalid')
-      if (this.outbound.zapret?.enabled && this.outbound.zapret.strategyRef === 'none') reasons.push('zapretDial.selectStrategy')
-      if (this.outbound.zapret?.enabled && zapretDialConflict(this.outbound)) reasons.push('zapretDial.conflict')
+      if (this.outbound.zapret?.enabled) {
+        const strategy = this.outbound.zapret.strategyRef
+        if (!strategy || strategy === 'none') reasons.push('zapretDial.selectStrategy')
+        const conflict = zapretOutboundConflict(this.outbound)
+        if (conflict) reasons.push(conflict)
+      }
       return reasons
     },
     capabilityState(): CapabilityEditState {
