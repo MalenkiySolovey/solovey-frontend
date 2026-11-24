@@ -5,6 +5,63 @@ import { csrfToken, enableComponent, login, mutationHeaders } from './helpers'
 const strategies = 'api/components/zapret/strategies'
 
 for (const mode of ['classic', 'nexus']) {
+  test(`${mode} preserves Direct source binds and exposes plain DNS detours`, async ({ page }) => {
+    await page.addInitScript(layout => window.localStorage.setItem('sui:ui:mode', layout), mode)
+    await login(page)
+    await enableComponent(page, 'zapret')
+    const direct = 'qualified-source-direct'
+    const strategy = 'resolver-strategy'
+    let enabled = false
+    // This browser fixture only supplies the installed status projection.
+    // Source ownership and DNS retries are exercised in the installed guest.
+    await page.route(/\/api\/load(?:\?|$)/, async route => {
+      const response = await route.fetch()
+      const body = await response.json()
+      if (Array.isArray(body.obj?.outbounds)) body.obj.outbounds.push({
+        id: 99_001, tag: direct, type: 'direct', bind_interface: 'eth0',
+        inet4_bind_address: '198.18.0.5', inet6_bind_address: '2001:db8:1::5',
+        zapret: { outboundRef: direct, strategyRef: strategy, enabled },
+      })
+      await route.fulfill({ response, json: body })
+    })
+    await page.route(`**/${strategies}`, route => route.fulfill({ json: { success: true, msg: '', obj: {
+      catalog: { records: { [strategy]: { name: 'Resolver strategy' } } }, ready: true,
+      references: [{ outboundRef: direct, strategyRef: strategy, enabled, state: enabled ? 'applied' : 'off' }],
+    } } }))
+
+    await page.goto('outbounds')
+    const row = (mode === 'classic' ? page.locator('.outbounds__card') : page.getByRole('row'))
+      .filter({ has: page.getByText(direct, { exact: true }) })
+    await row.getByRole('button', { name: 'Edit', exact: true }).click()
+    const editor = page.getByRole('dialog')
+    const toggle = editor.getByLabel('Zapret', { exact: true })
+    await expect(toggle).toBeEnabled()
+    await toggle.check()
+    await expect(editor.getByRole('textbox', { name: 'Bind to Network Interface', exact: true })).toHaveValue('eth0')
+    await expect(editor.getByRole('textbox', { name: 'Bind to IPv4', exact: true })).toHaveValue('198.18.0.5')
+    await expect(editor.getByRole('textbox', { name: 'Bind to IPv6', exact: true })).toHaveValue('2001:db8:1::5')
+
+    enabled = true
+    await page.goto('dns')
+    await page.getByRole('button', { name: 'Add Dns Server', exact: true }).first().click()
+    const dns = page.getByRole('dialog').filter({ hasText: 'Add DNS Server' })
+    const type = dns.getByRole('combobox', { name: 'Type', exact: true })
+    const transport = dns.getByRole('combobox', { name: 'Transport via', exact: true })
+    for (const protocol of ['tcp', 'udp']) {
+      await type.press('Enter')
+      await page.getByRole('option', { name: protocol, exact: true }).click()
+      await expect(transport).toHaveCount(1)
+      await expect(dns.getByText(/Zapret via/)).toHaveCount(0)
+      await transport.press('Enter')
+      await page.getByRole('option', { name: direct, exact: true }).click()
+      await expect(dns.getByText(/Direct binding applied; DNS packet matches are not shown here/)).toBeVisible()
+      await expect(dns.getByText(protocol === 'udp' ? /Truncated replies are retried over TCP/ : /must cover TCP for the resolver port/)).toBeVisible()
+      await expect(dns.getByRole('combobox', { name: 'Zapret strategy', exact: true })).toHaveCount(0)
+      await transport.press('Enter')
+      await page.getByRole('option', { name: 'Default transport', exact: true }).click()
+    }
+  })
+
   test(`${mode} shows native profile evidence for the applied Direct only`, async ({ page }) => {
     await page.addInitScript(layout => window.localStorage.setItem('sui:ui:mode', layout), mode)
     await login(page)

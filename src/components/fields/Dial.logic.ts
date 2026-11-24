@@ -57,6 +57,13 @@ export default defineComponent({
     dnsZapretState(): string {
       return this.zapretCatalog?.references.find(ref => ref.outboundRef === this.dnsZapret?.outboundRef && ref.strategyRef === this.dnsZapret?.strategyRef)?.state ?? 'blocked'
     },
+    dnsZapretCoverage(): string {
+      switch (this.dial.type) {
+        case 'udp': return 'zapretDial.requiresUDPAndTCP'
+        case 'quic': case 'h3': return 'zapretDial.requiresQUIC'
+        default: return 'zapretDial.requiresTCP'
+      }
+    },
     shouldLoadZapret(): boolean { return this.hasZapret && (this.directEditor || Boolean(this.dnsZapret)) },
     networkTypes() { return ['wifi', 'cellular', 'ethernet', 'other'] },
     networkStrategies() { return ['fallback', 'hybrid'] },
