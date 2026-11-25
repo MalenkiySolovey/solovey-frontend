@@ -19,6 +19,15 @@ export const e2eResultDir = process.env.SUI_E2E_RESULT_DIR
 export const serverStatePath = path.join(e2eResultDir, 'e2e-server', 'state.json')
 const fallbackE2EWebPath = normalizeWebPath(process.env.SUI_E2E_WEB_PATH ?? '/e2e-panel/')
 
+export const reviewZapretFile = async (page: Page, name: string, buffer: Buffer, mimeType = 'application/json') => {
+  await page.getByRole('button', { name: 'Import', exact: true }).click()
+  const review = page.getByRole('dialog')
+  await review.locator('input[type=file]').setInputFiles({ name, mimeType, buffer })
+  await review.getByRole('button', { name: 'Review', exact: true }).click()
+  await expect(review.getByText('Validated. Saving creates an unassigned strategy.')).toBeVisible()
+  await review.getByRole('button', { name: 'Save as strategy', exact: true }).click()
+}
+
 export const readServerState = (): E2EServerState => {
   if (fs.existsSync(serverStatePath)) {
     const state = JSON.parse(fs.readFileSync(serverStatePath, 'utf8')) as E2EServerState

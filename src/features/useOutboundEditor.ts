@@ -39,8 +39,9 @@ import Snell from '@/components/protocols/Snell.vue'
 import Data from '@/store/modules/data'
 import CapabilitySurface from '@/components/fields/CapabilitySurface.vue'
 import SaveGuardNotice from '@/components/fields/SaveGuardNotice.vue'
+import ZapretEgressStatus from '@/components/fields/ZapretEgressStatus.vue'
 import { entitySaveReasons, type SaveReason } from './entitySaveReview'
-import { zapretOutboundConflict } from './zapretBinding'
+import { hasZapretComponent, isZapretLogicalGroup, zapretOutboundConflict } from './zapretBinding'
 import { capabilityEditState, capabilityTypeChoices, type CapabilityChoice, type CapabilityEditState } from '@/types/capabilityEditors'
 export default defineComponent({
   props: ['visible', 'data', 'id', 'tags'],
@@ -172,6 +173,9 @@ export default defineComponent({
     capabilityState(): CapabilityEditState {
       return capabilityEditState(Data().capabilities, "outbounds", this.outbound.type, this.storedCapabilityType, (<any>this.outbound).transport, coreConfigContract.value?.protocol?.transports, this.outbound, coreConfigContract.value?.protocol?.criticalFields)
     },
+    showZapretGroupStatus(): boolean {
+      return hasZapretComponent() && isZapretLogicalGroup(this.outbound.type)
+    },
     requiresServer(): boolean {
       return !this.NoServer.includes(this.outbound.type) && !(this.outbound.type === OutTypes.Hysteria2 && this.outbound.realm)
     },
@@ -189,7 +193,7 @@ export default defineComponent({
       }
     },
   },
-  components: { SaveGuardNotice, CapabilitySurface, Dial, Multiplex, Transport, OutTLS,
+  components: { SaveGuardNotice, CapabilitySurface, Dial, Multiplex, Transport, OutTLS, ZapretEgressStatus,
     Direct, Socks, Http, Shadowsocks, Vmess, Trojan,
     Wireguard, Hysteria, Naive, ShadowTls, Vless, Tuic,
     Hysteria2, AnyTls, Snell, Tor, Ssh, CallNative, NativeClientOutbound, SudokuNative, MasqueOutbound, NativeOutboundGroup, LimiterOutbound, Selector, UrlTest, Failover }

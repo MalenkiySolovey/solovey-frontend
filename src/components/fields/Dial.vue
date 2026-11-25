@@ -19,13 +19,9 @@
         v-model="dial.bind_interface"></v-text-field>
       </v-col>
     </v-row>
-    <v-row v-if="dnsZapret">
+    <v-row v-if="showZapretEgress">
       <v-col cols="12">
-        <v-alert density="compact" variant="tonal" :type="dnsTransport && dnsZapretState === 'applied' ? 'info' : 'warning'">
-          {{ $t('zapretDial.uses', { direct: dnsZapret.outboundRef, strategy: dnsZapretName }) }}
-          {{ $t(dnsTransport ? `zapretDial.states.${dnsZapretState}` : 'zapretDial.unsupportedDNS') }}
-          <div v-if="dnsTransport">{{ $t(dnsZapretCoverage) }}</div>
-        </v-alert>
+        <ZapretEgressStatus :selected="dnsTransport ? dnsDetour : dial" :dns-type="dnsTransport ? dial.type : undefined" />
       </v-col>
     </v-row>
     <v-row v-if="showZapretBinding">
@@ -37,6 +33,7 @@
       </v-col>
       <v-col cols="12" class="text-caption">
         <span v-if="zapretScope">{{ $t(zapretScope) }}</span>
+        <v-btn v-if="zapretEditorRoute" size="small" variant="text" :to="zapretEditorRoute" target="_blank" rel="noopener">{{ $t('zapretDial.openStrategies') }}</v-btn>
         <v-alert v-if="zapretConflict || !zapretCatalog?.ready || zapretOn && zapretStrategy === 'none'" type="warning" density="compact" variant="tonal" class="mt-2">
           {{ $t(zapretConflict ?? (!zapretCatalog?.ready ? 'zapretDial.unavailable' : 'zapretDial.selectStrategy')) }}
         </v-alert>

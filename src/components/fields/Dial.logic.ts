@@ -1,7 +1,8 @@
 import { defineComponent } from 'vue'
 import Data from '@/store/modules/data'
 import DomainResolver from '@/components/fields/DomainResolver.vue'
-import { boundDirect, hasZapretComponent, isZapretDNSTransport, isZapretSocketOwner, readZapretSummary, zapretDialScope, zapretOutboundConflict, type ZapretCatalogSummary } from '@/features/zapretBinding'
+import ZapretEgressStatus from '@/components/fields/ZapretEgressStatus.vue'
+import { hasZapretComponent, isZapretDNSTransport, isZapretSocketOwner, readZapretSummary, zapretDialScope, zapretOutboundConflict, type ZapretCatalogSummary } from '@/features/zapretBinding'
 
 export default defineComponent({
   props: ['dial', 'mode', 'context'],
@@ -27,7 +28,15 @@ export default defineComponent({
     },
     zapretEditor(): boolean { return this.context === 'outbound' && isZapretSocketOwner(this.dial.type) },
     hasZapret(): boolean { return hasZapretComponent() },
-    showZapretBinding(): boolean { return this.zapretEditor && (this.hasZapret || Boolean(this.dial.zapret)) },
+    showZapretBinding(): boolean { return this.zapretEditor && (Boolean(this.dial.zapret) || this.hasZapret && !this.dial.detour) },
+    showZapretEgress(): boolean {
+      return this.hasZapret && Boolean(this.dial.detour) && (this.dnsTransport || this.zapretEditor && !this.showZapretBinding)
+    },
+    zapretEditorRoute() {
+      return this.hasZapret && this.$router.hasRoute('component.zapret')
+        ? { name: 'component.zapret', params: { hostId: this.$route.params.hostId } }
+        : undefined
+    },
     zapretConflict() { return zapretOutboundConflict(this.dial) },
     zapretScope(): string | undefined { return zapretDialScope(this.dial) },
     zapretOn: {
@@ -48,24 +57,7 @@ export default defineComponent({
       if (selected !== 'none' && !known.some(item => item.value === selected)) known.push({ value: selected, title: selected })
       return [{ value: 'none', title: String(this.$t('zapretDial.noStrategy')) }, ...known.sort((a, b) => a.title.localeCompare(b.title))]
     },
-    dnsZapret() {
-      return this.context === 'dns' ? boundDirect(Data().outbounds ?? [], this.dial.detour) : undefined
-    },
-    dnsZapretName(): string {
-      const ref = this.dnsZapret?.strategyRef ?? ''
-      return this.zapretCatalog?.catalog.records[ref]?.name ?? ref
-    },
-    dnsZapretState(): string {
-      return this.zapretCatalog?.references.find(ref => ref.outboundRef === this.dnsZapret?.outboundRef && ref.strategyRef === this.dnsZapret?.strategyRef)?.state ?? 'blocked'
-    },
-    dnsZapretCoverage(): string {
-      switch (this.dial.type) {
-        case 'udp': return 'zapretDial.requiresUDPAndTCP'
-        case 'quic': case 'h3': return 'zapretDial.requiresQUIC'
-        default: return 'zapretDial.requiresTCP'
-      }
-    },
-    shouldLoadZapret(): boolean { return this.hasZapret && (this.zapretEditor || Boolean(this.dnsZapret)) },
+    shouldLoadZapret(): boolean { return this.hasZapret && this.showZapretBinding },
     networkTypes() { return ['wifi', 'cellular', 'ethernet', 'other'] },
     networkStrategies() { return ['fallback', 'hybrid'] },
     networkConflict(): boolean {
@@ -229,5 +221,5 @@ export default defineComponent({
       if (this.zapretEditor && this.dial.zapret) this.dial.zapret.outboundRef = tag
     },
   },
-  components: { DomainResolver }
+  components: { DomainResolver, ZapretEgressStatus }
 })

@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import { expect, test } from '@playwright/test'
-import { enableComponent, login } from './helpers'
+import { enableComponent, login, reviewZapretFile } from './helpers'
 
 for (const mode of ['classic', 'nexus']) {
   test(`${mode} retains outgoing ranges on the correct ordered actions`, async ({ page }, info) => {
@@ -9,16 +9,16 @@ for (const mode of ['classic', 'nexus']) {
     await enableComponent(page, 'zapret')
     await page.goto('zapret')
     await page.getByRole('button', { name: 'New strategy', exact: true }).click()
-    const dialog = page.getByRole('dialog')
+    const dialog = page.getByTestId('zapret-strategy-editor')
     const name = `${mode} outgoing action ranges`
     await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill(name)
     const nativeButton = dialog.getByRole('button', { name: 'Native options', exact: true })
     const profilesButton = dialog.getByRole('button', { name: 'Profiles', exact: true })
     const native = dialog.getByRole('textbox', { name: 'Native options', exact: true })
     await nativeButton.click()
-    const source = '--name=ordered --filter-tcp=80\n--filter-l7=http --payload=http_req\n'
-      + '--out-range=-d1 --lua-desync=http_domcase\n--out-range=a --lua-desync=http_hostcase:spell=hOsT\n'
-      + '--new=quic --filter-udp=443 --filter-l7=quic --payload=quic_initial --out-range=x\n'
+    const source = '--name=ordered\n--filter-tcp=80\n--filter-l7=http\n--payload=http_req\n'
+      + '--out-range=-d1\n--lua-desync=http_domcase\n--out-range=a\n--lua-desync=http_hostcase:spell=hOsT\n'
+      + '--new=quic\n--filter-udp=443\n--filter-l7=quic\n--payload=quic_initial\n--out-range=x\n'
       + '--lua-desync=fake:blob=fake_default_quic:repeats=1\n'
     await native.fill(source)
     await profilesButton.click()
@@ -59,9 +59,9 @@ for (const mode of ['classic', 'nexus']) {
     expect(transfer.strategy.definition.profiles[1].outRange).toBe('-n2')
 
     await row.getByRole('button', { name: 'Delete strategy', exact: true }).click()
-    await dialog.getByRole('button', { name: 'Delete strategy', exact: true }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Delete strategy', exact: true }).click()
     await expect(row).toHaveCount(0)
-    await page.locator('.zapret-catalog input[type=file]').setInputFiles({ name: 'ranged-action.json', mimeType: 'application/json', buffer: bytes })
+    await reviewZapretFile(page, 'ranged-action.json', bytes)
     await expect(row).toBeVisible()
     await row.getByRole('button', { name: 'Edit strategy', exact: true }).click()
     await nativeButton.click()

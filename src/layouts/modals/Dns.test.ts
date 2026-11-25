@@ -22,6 +22,7 @@ function mount(data: Record<string, any>, mode: string, native = false) {
     schema: 'solovey-ui/entity-capabilities/v1', componentProfile: 'full', multicastInterfaces: ['fixture0'], facts: [
       { category: 'dns', type: 'mdns', runtimeType: 'mdns', known: true, contextSupported: true, registered: true, compiled: true, available: true, runtimeDependency: 'multicast', runtimeEligible: true, platformDependencyAvailable: true },
       { category: 'dns', type: 'resolved', runtimeType: 'resolved', known: true, contextSupported: true, registered: true, compiled: true, available: false, runtimeDependency: 'resolve1-system-bus', runtimeEligible: false, platformDependencyAvailable: true, reason: 'DNS_RESOLVED_BUS_NAME_OCCUPIED' },
+      { category: 'dns', type: 'tls', runtimeType: 'tls', known: true, contextSupported: true, registered: true, compiled: true, available: true },
       ...['sdns', 'fallback', 'openconnect', 'openvpn'].map(type => ({ category: 'dns', type, runtimeType: type, known: true, contextSupported: true, registered: native, compiled: native, available: native, buildTag: 'shtorm_extended', requiredProvider: 'Shtorm Extended' })),
       ...['openconnect', 'openvpn-client'].map(type => ({ category: 'endpoints', type, runtimeType: type, known: true, contextSupported: true, registered: native, compiled: native, available: native })),
     ],
@@ -140,9 +141,17 @@ describe('shared DNS editor for Classic and Nexus', () => {
       const markup = await renderEditor(source)
       expect(markup).toContain('tls.insecure')
       expect(markup).toContain('tls.disableSni')
+      expect(markup).not.toContain('dns.unverifiedTLS')
       expect(markup).not.toContain('label="tls.enable"')
       expect(JSON.stringify(vm.dnsServer)).toBe(before)
       expect(source.tls).toEqual({ enabled: false, future: { counter: 0 } })
+    })
+    it(`${mode} warns about an operator-selected insecure resolver without blocking save`, async () => {
+      const source = { type: 'tls', tag: 'encrypted', server: 'resolver.example', tls: { insecure: true } }
+      const { vm, saved } = mount(source, mode)
+      expect(await renderEditor(source)).toContain('dns.unverifiedTLS')
+      vm.save()
+      expect(saved).toHaveBeenCalledWith(source)
     })
     it(`${mode} explains unavailable resolved history and refuses a missing service`, () => {
       const { vm, saved } = mount({ type: 'resolved', tag: 'resolved', service: 'missing', accept_default_resolvers: true }, mode)

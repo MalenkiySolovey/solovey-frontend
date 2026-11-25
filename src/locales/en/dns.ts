@@ -17,6 +17,7 @@ export default {
     "firstServer": "First Server",
     "cacheCapacity": "Cache Capacity",
     "sdnsStamp": "DNSCrypt stamp",
+    "unverifiedTLS": "The resolver's certificate will not be verified. An impostor could read DNS queries or change responses.",
     "sdnsStampHint": "An sdns:// DNSCrypt resolver stamp. Other stamp protocols are unavailable in this transport.",
     "fallbackServers": "DNS servers",
     "fallbackServersHint": "Select existing DNS server tags. Order matters for sequential fallback; cyclic references are invalid.",

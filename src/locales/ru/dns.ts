@@ -17,6 +17,7 @@ export default {
     "firstServer": "Первый сервер",
     "cacheCapacity": "Вместимость кэша",
     "sdnsStamp": "DNSCrypt stamp",
+    "unverifiedTLS": "Сертификат DNS-сервера не проверяется. При подмене сервера DNS-запросы можно прочитать, а ответы изменить.",
     "sdnsStampHint": "Stamp sdns:// для DNSCrypt resolver. Другие протоколы stamp недоступны в этом транспорте.",
     "fallbackServers": "DNS-серверы",
     "fallbackServersHint": "Выберите теги существующих DNS-серверов. Для sequential важен порядок; циклические ссылки недопустимы.",

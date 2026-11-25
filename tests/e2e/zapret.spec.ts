@@ -11,7 +11,7 @@ for (const mode of ['classic', 'nexus']) {
     await enableComponent(page, 'zapret')
     await page.goto('zapret')
     await page.getByRole('button', { name: 'New strategy', exact: true }).click()
-    const dialog = page.getByRole('dialog')
+    const dialog = page.getByTestId('zapret-strategy-editor')
     const name = `${mode} Circular round trip`
     await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill(name)
     await dialog.getByRole('button', { name: 'HTTP/TCP preset', exact: true }).click()
@@ -44,7 +44,7 @@ for (const mode of ['classic', 'nexus']) {
     expect(transfer.strategy.definition.needsReturn).toBe(true)
     expect(transfer.strategy.definition.profiles[0].circular).toEqual({ failures: 3, splits: [23, 9] })
     await row.getByRole('button', { name: 'Delete strategy', exact: true }).click()
-    await dialog.getByRole('button', { name: 'Delete strategy', exact: true }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Delete strategy', exact: true }).click()
     await expect(row).toHaveCount(0)
   })
 }
@@ -151,6 +151,7 @@ for (const mode of ['classic', 'nexus']) {
     await expect(editor.getByText(/SOCKS5 can negotiate a separate UDP relay/)).toBeVisible()
     await edit(selector)
     await expect(toggle).toHaveCount(0)
+    await expect(editor.getByText(/depends on the live group selection/)).toBeVisible()
   })
 
   test(`${mode} preserves Direct source binds and exposes plain DNS detours`, async ({ page }) => {
@@ -167,7 +168,7 @@ for (const mode of ['classic', 'nexus']) {
       const body = await response.json()
       if (Array.isArray(body.obj?.outbounds)) body.obj.outbounds.push({
         id: 99_001, tag: direct, type: 'direct', bind_interface: 'eth0',
-        inet4_bind_address: '198.18.0.5', inet6_bind_address: '2001:db8:1::5',
+        inet4_bind_address: '198.18.0.5', inet6_bind_address: '2001:db8:1::5', routing_mark: '0x000', netns: '',
         zapret: { outboundRef: direct, strategyRef: strategy, enabled },
       })
       await route.fulfill({ response, json: body })
@@ -202,7 +203,7 @@ for (const mode of ['classic', 'nexus']) {
       await expect(dns.getByText(/Zapret via/)).toHaveCount(0)
       await transport.press('Enter')
       await page.getByRole('option', { name: direct, exact: true }).click()
-      await expect(dns.getByText(/Direct binding applied; DNS packet matches are not shown here/)).toBeVisible()
+      await expect(dns.getByText(/Outbound binding applied; packet matches are not shown here/)).toBeVisible()
       await expect(dns.getByText(protocol === 'udp' ? /Truncated replies are retried over TCP/ : /must cover TCP for the resolver port/)).toBeVisible()
       await expect(dns.getByRole('combobox', { name: 'Zapret strategy', exact: true })).toHaveCount(0)
       await transport.press('Enter')
@@ -210,27 +211,78 @@ for (const mode of ['classic', 'nexus']) {
     }
   })
 
+  test(`${mode} reports a fixed proxy's outer binding in DNS without applying it`, async ({ page }) => {
+    await page.addInitScript(layout => window.localStorage.setItem('sui:ui:mode', layout), mode)
+    await login(page)
+    await enableComponent(page, 'zapret')
+    const tag = 'dns-fixed-proxy'
+    const group = 'dns-static-selector'
+    const binding = { outboundRef: tag, strategyRef: 'proxy-strategy', enabled: true }
+    await page.route(/\/api\/load(?:\?|$)/, async route => {
+      const response = await route.fetch()
+      const body = await response.json()
+      if (Array.isArray(body.obj?.outbounds)) body.obj.outbounds.push(
+        { id: 99_011, tag, type: 'http', server: 'proxy.example.test', server_port: 8443, zapret: binding },
+        { id: 99_012, tag: group, type: 'selector', outbounds: [tag] },
+        { id: 99_013, tag: 'dns-pending-group', type: 'selector', outbounds: [tag, group], default: tag },
+      )
+      await route.fulfill({ response, json: body })
+    })
+    await page.route(`**/${strategies}`, route => route.fulfill({ json: { success: true, msg: '', obj: {
+      catalog: { records: { [binding.strategyRef]: { name: 'Proxy strategy' } } }, ready: true,
+      references: [{ ...binding, state: 'applied' }],
+    } } }))
+    await page.goto('dns')
+    await page.getByRole('button', { name: 'Add Dns Server', exact: true }).first().click()
+    const dns = page.getByRole('dialog').filter({ hasText: 'Add DNS Server' })
+    await dns.getByRole('combobox', { name: 'Type', exact: true }).press('Enter')
+    await page.getByRole('option', { name: 'https', exact: true }).click()
+    const transport = dns.getByRole('combobox', { name: 'Transport via', exact: true })
+    for (const selected of [tag, group]) {
+      await transport.press('Enter')
+      await page.getByRole('option', { name: selected, exact: true }).click()
+      await expect(dns.getByText(`Zapret via ${tag} · Proxy strategy`, { exact: true })).toBeVisible()
+      await expect(dns.getByText(/outer socket only/)).toBeVisible()
+      await expect(dns.getByText(/must cover TCP for the resolver port/)).toHaveCount(0)
+      await expect(dns.getByRole('combobox', { name: 'Zapret strategy', exact: true })).toHaveCount(0)
+    }
+    await transport.press('Enter')
+    await page.getByRole('option', { name: 'dns-pending-group', exact: true }).click()
+    await expect(dns.getByText(/depends on the live group selection/)).toBeVisible()
+    await expect(dns.getByText(/Zapret via/)).toHaveCount(0)
+  })
+
   test(`${mode} shows native profile evidence for the applied Direct only`, async ({ page }) => {
     await page.addInitScript(layout => window.localStorage.setItem('sui:ui:mode', layout), mode)
     await login(page)
     await enableComponent(page, 'zapret')
     let applied = true
+    let attempted: object | undefined
     // The installed broker proof qualifies the evidence source. Here exercise
     // the presentation, including an out-of-date observation in a response.
     await page.route(`**/${strategies}`, route => route.fulfill({ json: { success: true, obj: {
-      catalog: { records: {} }, ready: true, references: [
+      catalog: { records: {} }, ready: true, revision: 'example-revision', references: [
         { outboundRef: 'trace-a', strategyRef: 'http-a', enabled: true, queue: 401,
           state: applied ? 'applied' : 'pending', nativeMatches: { profiles: ['http-profile-a'] } },
         { outboundRef: 'trace-b', strategyRef: 'http-b', enabled: true, queue: 401, state: 'applied', nativeMatches: {} },
       ],
     } } }))
+    await page.route('**/api/components/zapret/diagnose', async route => {
+      attempted = route.request().postDataJSON()
+      await route.fulfill({ json: { success: true, obj: { OK: false, Error: 'outbound_check_timeout' } } })
+    })
     await page.goto('zapret')
+    await page.getByRole('tab', { name: 'Runtime', exact: true }).click()
     const row = (ref: string) => page.getByRole('row').filter({ has: page.getByText(ref, { exact: true }) })
     await expect(row('trace-a').getByText('http-profile-a', { exact: true })).toBeVisible()
     await expect(row('trace-b').getByText('No native profile observed yet', { exact: true })).toBeVisible()
+    await row('trace-a').getByRole('button', { name: 'Run the HTTPS egress check' }).click()
+    await expect(page.getByText('HTTPS through trace-a: Probe timed out', { exact: true })).toBeVisible()
+    expect(attempted).toEqual({ outboundRef: 'trace-a', strategyRef: 'http-a', expectedRevision: 'example-revision' })
     applied = false
     await page.getByRole('button', { name: 'Refresh', exact: true }).click()
     await expect(row('trace-a').getByText('Desired differs from applied')).toBeVisible()
+    await expect(row('trace-a').getByRole('button', { name: 'Run the HTTPS egress check' })).toBeDisabled()
     await expect(page.getByText('http-profile-a', { exact: true })).toHaveCount(0)
   })
 
@@ -244,6 +296,9 @@ for (const mode of ['classic', 'nexus']) {
     const name = `${mode} QUIC strategy`
     const row = (title: string) => page.getByRole('listitem').filter({ has: page.getByText(title, { exact: true }) })
     const dialog = page.getByRole('dialog')
+    const strategyEditor = page.getByTestId('zapret-strategy-editor')
+    const assets = page.getByRole('tab', { name: 'Lists & assets', exact: true })
+    await assets.click()
     await page.getByRole('button', { name: 'New QUIC blob', exact: true }).click()
     await dialog.getByRole('textbox', { name: 'Blob ID', exact: true }).fill(blobID)
     await dialog.getByRole('textbox', { name: 'Hexadecimal bytes (up to 1200 bytes)', exact: true }).fill('405549')
@@ -251,17 +306,19 @@ for (const mode of ['classic', 'nexus']) {
     await expect(row(blobID)).toBeVisible()
 
     await page.getByRole('button', { name: 'New strategy', exact: true }).click()
-    await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill(name)
-    await dialog.getByRole('button', { name: 'QUIC/UDP preset', exact: true }).click()
-    await dialog.getByRole('combobox', { name: 'QUIC decoy blob', exact: true }).press('Enter')
+    await strategyEditor.getByRole('textbox', { name: 'Name', exact: true }).fill(name)
+    await strategyEditor.getByRole('button', { name: 'QUIC/UDP preset', exact: true }).click()
+    await strategyEditor.getByRole('combobox', { name: 'QUIC decoy blob', exact: true }).press('Enter')
     await page.getByRole('option', { name: blobID, exact: true }).click()
-    await dialog.getByRole('button', { name: 'Native options', exact: true }).click()
-    const native = dialog.getByRole('textbox', { name: 'Native options' })
+    await strategyEditor.getByRole('button', { name: 'Native options', exact: true }).click()
+    const native = strategyEditor.getByRole('textbox', { name: 'Native options' })
     await expect(native).toHaveValue(new RegExp(`blob=asset_${blobID}:repeats=1`))
     expect(await native.inputValue()).not.toContain('405549')
-    await dialog.getByRole('button', { name: 'Save', exact: true }).click()
+    await strategyEditor.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(row(name)).toBeVisible()
+    await assets.click()
     await expect(row(blobID).getByRole('button', { name: 'Delete QUIC blob', exact: true })).toBeDisabled()
+    await page.getByRole('tab', { name: 'Strategies', exact: true }).click()
 
     const file = page.waitForEvent('download')
     await row(name).getByRole('button', { name: 'Export', exact: true }).click()
@@ -271,6 +328,7 @@ for (const mode of ['classic', 'nexus']) {
     await row(name).getByRole('button', { name: 'Delete strategy', exact: true }).click()
     await dialog.getByRole('button', { name: 'Delete strategy', exact: true }).click()
     await expect(row(name)).toHaveCount(0)
+    await assets.click()
     await row(blobID).getByRole('button', { name: 'Delete QUIC blob', exact: true }).click()
     await dialog.getByRole('button', { name: 'Delete QUIC blob', exact: true }).click()
     await expect(row(blobID)).toHaveCount(0)
@@ -298,6 +356,7 @@ for (const mode of ['classic', 'nexus']) {
     })
     expect(forbidden.status()).toBe(403)
 
+    await page.getByRole('tab', { name: 'Lists & assets', exact: true }).click()
     await page.getByRole('button', { name: 'New native list', exact: true }).click()
     const listDialog = page.getByRole('dialog')
     await listDialog.getByRole('textbox', { name: 'List ID', exact: true }).fill(listID)
@@ -306,7 +365,8 @@ for (const mode of ['classic', 'nexus']) {
     await expect(row(listID)).toBeVisible()
 
     await page.getByRole('button', { name: 'New strategy', exact: true }).click()
-    let dialog = page.getByRole('dialog')
+    const strategyEditor = page.getByTestId('zapret-strategy-editor')
+    let dialog = strategyEditor
     await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill(name)
     await dialog.getByRole('button', { name: 'TLS/TCP preset' }).click()
     await dialog.getByText('Native filters', { exact: true }).click()
@@ -323,7 +383,9 @@ for (const mode of ['classic', 'nexus']) {
     await expect(native).toHaveValue(text)
     await dialog.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(row(name)).toBeVisible()
+    await page.getByRole('tab', { name: 'Lists & assets', exact: true }).click()
     await expect(row(listID).getByRole('button', { name: 'Delete native list' })).toBeDisabled()
+    await page.getByRole('tab', { name: 'Strategies', exact: true }).click()
 
     const file = page.waitForEvent('download')
     await row(name).getByRole('button', { name: 'Export', exact: true }).click()
@@ -336,7 +398,7 @@ for (const mode of ['classic', 'nexus']) {
     await dialog.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(row(`${name} (copy)`)).toBeVisible()
     await row(`${name} (copy)`).getByRole('button', { name: 'Delete strategy' }).click()
-    await dialog.getByRole('button', { name: 'Delete strategy' }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Delete strategy' }).click()
     await expect(row(`${name} (copy)`)).toHaveCount(0)
 
     const change = async (data: Record<string, unknown>) => (await page.request.post(strategies, {

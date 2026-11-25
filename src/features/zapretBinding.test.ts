@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { boundDirect, hasZapretComponent, isZapretDNSTransport, isZapretSocketOwner, zapretDialScope, zapretOutboundConflict } from './zapretBinding'
+import { hasZapretComponent, isZapretDNSTransport, isZapretSocketOwner, zapretDialScope, zapretEgress, zapretOutboundConflict } from './zapretBinding'
 import en from '@/locales/en/zapretDial'
 import ru from '@/locales/ru/zapretDial'
 
@@ -16,28 +16,43 @@ describe('Zapret Dial Options', () => {
     expect(hasZapretComponent()).toBe(true)
   })
 
-  it('derives DNS status strictly from the selected enabled Direct', () => {
+  it('derives status from the configured Direct or fixed proxy socket owner', () => {
     const binding = { outboundRef: 'a', enabled: true, strategyRef: 'example-strategy' }
-    const rows = [{ type: 'direct', tag: 'a', zapret: binding }, { type: 'socks', tag: 'b', zapret: binding }, { type: 'direct', tag: 'c' }]
-    expect(boundDirect(rows, 'a')).toBe(binding)
-    expect(boundDirect(rows, 'b')).toBeUndefined()
-    expect(boundDirect(rows, 'c')).toBeUndefined()
-    expect(boundDirect(rows, '')).toBeUndefined()
-    expect(boundDirect([{ type: 'direct', tag: 'a', zapret: { ...binding, enabled: false } }], 'a')).toBeUndefined()
+    const proxy = { type: 'http', tag: 'b', server: 'proxy.example.test', server_port: 443, zapret: { ...binding, outboundRef: 'b' } }
+    const rows = [{ type: 'direct', tag: 'a', zapret: binding }, proxy,
+      { ...proxy, tag: 'hop', detour: 'a' }, { type: 'direct', tag: 'off', zapret: { ...binding, outboundRef: 'off', enabled: false } },
+      { type: 'selector', tag: 'group', outbounds: ['b'] }, { type: 'selector', tag: 'dynamic', outbounds: ['a', 'b'], default: 'a' }]
+    expect(zapretEgress(rows, 'a')).toMatchObject({ state: 'known', kind: 'direct', binding })
+    expect(zapretEgress(rows, 'b')).toMatchObject({ state: 'known', kind: 'proxy', binding: proxy.zapret })
+    expect(zapretEgress(rows, 'group')).toMatchObject({ state: 'known', tag: 'b', binding: proxy.zapret })
+    expect(zapretEgress(rows, 'hop')).toMatchObject({ state: 'known', tag: 'a', proxied: true, binding })
+    expect(zapretEgress(rows, 'off')).toMatchObject({ state: 'known', binding: undefined })
+    expect(zapretEgress(rows, 'dynamic')).toEqual({ state: 'dynamic' })
+    expect(zapretEgress(rows, { type: 'selector', tag: 'draft', outbounds: ['a'], providers: ['remote'] })).toEqual({ state: 'dynamic' })
+    expect(zapretEgress(rows, '')).toEqual({ state: 'unresolved' })
+    expect(zapretEgress([...rows, { type: 'direct', tag: 'a' }], 'a')).toEqual({ state: 'unresolved' })
+    expect(zapretEgress(rows, { ...proxy, tag: 'hop', detour: 'hop' })).toEqual({ state: 'unresolved' })
+    expect(zapretEgress(rows, { ...proxy, tag: 'hop', type: 'socks', detour: 'b' })).toEqual({ state: 'unqualified' })
   })
 
   it('does not erase conflicting explicit dial intent', () => {
     expect(zapretOutboundConflict({ type: 'direct', detour: '' })).toBeUndefined()
     expect(zapretOutboundConflict({ type: 'direct', detour: 'proxy' })).toBe('zapretDial.detoured')
-    for (const intent of [{ routing_mark: 0 }, { netns: 'separate' }, { protect_path: '/run/custom.sock' }]) {
-      expect(zapretOutboundConflict({ type: 'direct', ...intent })).toBe('zapretDial.conflict')
+    for (const mark of [0, '0', '0x000', '0O_00', '0b_0', '0_0']) {
+      expect(zapretOutboundConflict({ type: 'direct', routing_mark: mark, netns: '' })).toBeUndefined()
     }
+    for (const mark of [1, '0x1', '0x', '0_', '00e0', null, '', false, ' 0', '+0', '0\n']) {
+      expect(zapretOutboundConflict({ type: 'direct', routing_mark: mark })).toBe('zapretDial.markConflict')
+    }
+    expect(zapretOutboundConflict({ type: 'direct', netns: 'separate' })).toBe('zapretDial.namespaceConflict')
+    expect(zapretOutboundConflict({ type: 'direct', netns: null })).toBe('zapretDial.namespaceConflict')
+    expect(zapretOutboundConflict({ type: 'direct', protect_path: '' })).toBe('zapretDial.protectPathConflict')
   })
 
   it('lets the installed Host validate source addresses and interface together', () => {
     const bound = { type: 'direct', bind_interface: 'eth0', inet4_bind_address: '198.18.0.5', inet6_bind_address: '2001:db8:1::5' }
     expect(zapretOutboundConflict(bound)).toBeUndefined()
-    expect(zapretOutboundConflict({ ...bound, routing_mark: 12 })).toBe('zapretDial.conflict')
+    expect(zapretOutboundConflict({ ...bound, routing_mark: 12 })).toBe('zapretDial.markConflict')
   })
 
   it('keeps the binding on fixed proxy sockets, including their exact endpoint requirements', () => {
