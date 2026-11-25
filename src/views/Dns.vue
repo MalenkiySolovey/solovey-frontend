@@ -225,7 +225,11 @@
         @update:delete-open="delDnsOverlay[index] = $event"
         @update:selected="toggleDnsServerSelection(index, Boolean($event))"
       >
-        <template #availability><CapabilityBadge :state="resourceAvailability(item)" /></template>
+        <template #availability>
+          <CapabilityBadge :state="resourceAvailability(item)" />
+          <v-btn v-if="canOpenBlockCheck && canSelectBlockCheckResolver(item.type)" icon="mdi-lan-check" variant="text" size="small" title="BlockCheck" aria-label="BlockCheck"
+            @click.stop="handleServerAction('blockcheck', item)" />
+        </template>
       </ClassicConfigCard>
     </v-col>
   </v-row>
@@ -319,6 +323,7 @@
 import ManualSortButton from '@/shared/ui/ManualSortButton.vue'
 import BulkSelectionControls from '@/shared/ui/BulkSelectionControls.vue'
 import ClassicConfigCard from '@/shared/ui/ClassicConfigCard.vue'
+import { canSelectBlockCheckResolver } from '@/features/useBlockCheckLink'
 import CollapsibleSectionHeader from '@/shared/ui/CollapsibleSectionHeader.vue'
 import DnsVue from '@/layouts/modals/Dns.vue'
 import DnsRuleVue from '@/layouts/modals/DnsRule.vue'
@@ -335,7 +340,7 @@ import CompatibilityFindings from '@/components/common/CompatibilityFindings.vue
 import CapabilityBadge from '@/components/fields/CapabilityBadge.vue'
 
 const dnsPage = useDnsPage()
-const { availableDnsServerTags, canCreateDns, resourceAvailability } = dnsPage
+const { availableDnsServerTags, canCreateDns, canOpenBlockCheck, resourceAvailability } = dnsPage
 const { compatibilityPreview, previewCompatibility, applyCompatibilityToDraft } = dnsPage
 
 const { actionDnsRuleKeys, appConfig, applyPresetConfig, clients, closeDnsModal, closeDnsRuleModal, confirm, delDns, delDnsOverlay, delDnsRule, delDnsRuleOverlay, deleteSelectedDnsRules, deleteSelectedDnsServers, dns, dnsModal, dnsRuleDrag, dnsRuleModal, dnsRuleRows, dnsRuleSelectMode, dnsRules, dnsServerDrag, dnsServerRows, dnsServerSelectMode, dnsServerTags, dnsServersExpanded, finalDns, handleRuleAction, handleServerAction, inboundTags, isDnsRuleSelected, isDnsServerSelected, loading, mode, moveDnsRulesTo, moveDnsServersTo, moveDnsRuleTo, moveDnsServerTo, nexus, onDnsRuleDrop, onDnsServerDrop, outboundTags, presetSourceLabel, regionalPresetDrawer, rslvdTags, ruleActions, ruleColumns, ruleSets, saveConfig, saveDnsModal, saveDnsRuleModal, search, selectedDnsRuleIndexes, selectedDnsServerIndexes, serverActions, serverColumns, showDnsModal, showDnsRuleModal, sortDnsServersByName, stateChange, subtitle, t, toggleDnsRuleSelectMode, toggleDnsRuleSelection, toggleDnsServerSelectMode, toggleDnsServerSelection, tsTags } = dnsPage

@@ -15,10 +15,12 @@ import { useUiMode } from '@/uiMode/useUiMode'
 import { isPresetManagedItem } from '@/components/presets/routingDnsPresets'
 import { useDnsConfig } from '@/shared/composables/dns/useDnsConfig'
 import { useResourceAvailability } from '@/features/useResourceAvailability'
+import { canSelectBlockCheckResolver, useBlockCheckLink } from '@/features/useBlockCheckLink'
 
 export const useDnsPage = () => {
   const { confirm } = useConfirm()
   const { resourceAvailability, canCreate } = useResourceAvailability('dns')
+  const { canOpenBlockCheck, openBlockCheck } = useBlockCheckLink()
 
   const { mode } = useUiMode()
 
@@ -177,6 +179,7 @@ export const useDnsPage = () => {
     { key: 'up', labelKey: 'table.moveUp', icon: 'lucide:arrow-up', inline: true, reserveSpace: true, hidden: search.value.trim().length > 0 || item._index === 0 },
     { key: 'down', labelKey: 'table.moveDown', icon: 'lucide:arrow-down', inline: true, reserveSpace: true, hidden: search.value.trim().length > 0 || item._index === (dns.value?.servers?.length ?? 0) - 1 },
     { key: 'edit', labelKey: resourceAvailability(item).historical ? 'capability.inspect' : 'actions.edit', icon: resourceAvailability(item).historical ? 'lucide:eye' : 'lucide:pencil', inline: true },
+    { key: 'blockcheck', labelKey: 'blockcheck.title', icon: 'lucide:network', hidden: !canOpenBlockCheck.value || !canSelectBlockCheckResolver(item.type) },
     { key: 'del', labelKey: 'actions.del', icon: 'lucide:trash-2', tone: 'error', inline: true },
   ]
 
@@ -188,6 +191,7 @@ export const useDnsPage = () => {
   ]
 
   const handleServerAction = async (key: string, item: any) => {
+    if (key === 'blockcheck') { await openBlockCheck({ outbound: item.detour, resolver: item.tag }); return }
     if (key === 'up') { moveDnsServer(item._index, -1); return }
     if (key === 'down') { moveDnsServer(item._index, 1); return }
     if (key === 'edit') { showDnsModal(item._index); return }
@@ -339,6 +343,7 @@ export const useDnsPage = () => {
     availableDnsServerTags,
     canCreateDns: canCreate,
     resourceAvailability,
+    canOpenBlockCheck,
     actionDnsRuleKeys,
     appConfig,
     compatibilityPreview,

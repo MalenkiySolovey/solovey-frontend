@@ -27,6 +27,7 @@
 
         <v-main class="nexus-shell__main">
           <div class="nexus-shell__view">
+            <BlockCheckDiagnosticsAction />
             <slot>
               <router-view />
             </slot>
@@ -44,6 +45,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useDisplay, useLocale, useTheme } from 'vuetify'
 
 import ConfirmHost from '@/components/nexus/primitives/ConfirmHost.vue'
+import BlockCheckDiagnosticsAction from '@/features/BlockCheckDiagnosticsAction.vue'
 import { useUiPalette } from '@/uiMode/palette'
 import NexusServerStatus from './NexusServerStatus.vue'
 import NexusSidebar from './NexusSidebar.vue'

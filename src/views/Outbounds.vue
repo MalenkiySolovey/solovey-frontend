@@ -191,6 +191,8 @@
                 >
                   <v-tooltip activator="parent" location="top" :text="$t('actions.test')"></v-tooltip>
                 </v-icon>
+                <v-btn v-if="canOpenBlockCheck" icon="mdi-lan-check" variant="text" size="small" title="BlockCheck" aria-label="BlockCheck"
+                  @click="openBlockCheck({ outbound: item.tag })" />
                 <template v-if="checkResults[item.tag]?.loading == false">
                   <template v-if="checkResults[item.tag]">
                     <v-chip
@@ -254,6 +256,7 @@
 
 <script lang="ts" setup>
 import CapabilityBadge from '@/components/fields/CapabilityBadge.vue'
+import { useBlockCheckLink } from '@/features/useBlockCheckLink'
 import { useResourceAvailability } from '@/features/useResourceAvailability'
 const { resourceAvailability, canCreate } = useResourceAvailability('outbounds')
 import ManualOrderControls from '@/shared/ui/ManualOrderControls.vue'
@@ -268,6 +271,7 @@ import RuntimeControls from '@/components/RuntimeControls.vue'
 const runtimeControlsOpen = ref(false)
 
 const OutboundsNexusList = defineAsyncComponent(() => import('./outbounds/OutboundsNexusList.vue'))
+const { canOpenBlockCheck, openBlockCheck } = useBlockCheckLink()
 const OutboundDrawer = defineAsyncComponent(() => import('@/components/nexus/drawers/OutboundDrawer.vue'))
 
 const { mode, EntityForm, checkResults, testingAll, checkOutbound, checkAllOutbounds, failoverStatus, outbounds, orderedOutbounds, outboundOrderDirty, outboundOrderSaving, outboundTags, onlines, enableTraffic, modal, showModal, closeModal, bulkModal, showBulkModal, closeBulkModal, stats, showStats, closeStats, delOverlay, delOutbound, delOutboundsBulk, deleteSelectedOutbounds, outboundSelectMode, selectedOutboundCount, selectedOutboundIds, isOutboundSelected, toggleOutboundSelectMode, toggleOutboundSelection, moveOutbound, dragOutbound, dragSelectedOutbounds, sortOutboundsByName, saveOutboundOrder, cancelOutboundOrder, outboundDrag, onOutboundDrop } = useOutboundsPage(OutboundVue, OutboundDrawer, OutboundsNexusList)
