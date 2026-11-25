@@ -67,4 +67,52 @@ for (const layout of ['classic', 'nexus']) {
     await expect(page.locator('.diagnostics')).toBeVisible()
     await expect(page.getByRole('button', { name: 'BlockCheck', exact: true })).toHaveCount(0)
   })
+
+  test(`${layout} explains retained BlockCheck observations without inventing endpoint TCP`, async ({ page }, info) => {
+    await page.addInitScript(value => window.localStorage.setItem('sui:ui:mode', value), layout)
+    if (layout === 'nexus') await page.setViewportSize({ width: 390, height: 844 })
+    await login(page)
+    await enableComponent(page, 'blockcheck')
+    const base = 'api/components/blockcheck'
+    const history = await page.request.get(`${base}/history`)
+    expect(history.ok()).toBeTruthy()
+    expect((await history.json()).obj.runs).toEqual([])
+
+    // Use saved observations as UI fixtures; do not probe external services.
+    const ids = ['telegram', 'discord', 'youtube', 'whatsapp']
+    const path = { mode: 'OUTBOUND', ref: 'fixture-outbound' }
+    const startedAt = '2026-11-25T18:00:00Z'
+    const finishedAt = '2026-11-25T18:00:05Z'
+    const row = (target: number, probe: string, stage: string, status: string) => ({
+      target, targetRef: `fixture-${target}`, probe, stage, status, elapsedMs: 100,
+    })
+    const web = { ...row(0, 'https', 'http', 'http_response'), httpStatus: 204, tlsVersion: 'TLS 1.3', tlsVerified: true }
+    const rows = [
+      [web, { ...row(0, 'tcp', 'tcp', 'unobservable'), reason: 'proxy_connect_not_endpoint_proof' }, row(1, 'stun', 'udp', 'timeout')],
+      [web], [row(0, 'https', 'tls', 'connection_reset')], [row(0, 'https', 'tcp', 'unsupported')],
+    ]
+    const groups = ids.map((groupId, index) => ({
+      report: { job: { jobId: `report-${groupId}`, phase: 'COMPLETED' }, path, groupId, groupRevision: 'fixture-v1', family: 'ipv4',
+        pathEvidence: { host: { id: 'local' }, generation: 'fixture-core', scope: 'outbound-proxy-connect' }, startedAt, finishedAt, results: rows[index] },
+      targets: [{ name: 'Site', host: 'website.fixture.example', role: 'Website' },
+        ...(index === 0 ? [{ name: 'Voice', host: 'voice.fixture.example', role: 'Voice (STUN)' }] : [])],
+    }))
+    const run = { all: true, id: 'fixture', groupIds: ids, path, family: 'ipv4', depth: 'quick', startedAt, finishedAt, phase: 'COMPLETED',
+      progress: { groupsDone: 4, totalGroups: 4, probesDone: 6, totalProbes: 6 }, groups }
+    await page.route(`**/${base}/history`, route => route.fulfill({ json: { success: true, msg: '', obj: { version: 1, runs: [run] } } }))
+    await page.goto('hosts/local/blockcheck')
+    const workflow = page.locator('.blockcheck')
+    await expect(workflow.locator('.overview-counts dd')).toHaveText(['1', '1', '1', '1'])
+    const telegram = workflow.locator('[data-group-id="telegram"]')
+    await expect(telegram.getByText('Limited', { exact: true })).toBeVisible()
+    await expect(telegram.getByText('Voice (STUN)', { exact: true }).first()).toBeVisible()
+    await telegram.getByRole('button', { name: 'Group details' }).click()
+    await expect(workflow.locator('[data-stage="tcp"][data-availability="unconfirmed"]').first()).toBeVisible()
+    await expect(workflow.getByText(/endpoint TCP handshake was not observed/)).toBeVisible()
+    await expect(workflow.getByText('voice.fixture.example', { exact: true })).toBeVisible()
+    const losesWidth = await workflow.evaluate(element => element.scrollWidth > element.clientWidth + 1)
+    expect(losesWidth).toBe(false)
+    await workflow.locator('#blockcheck-results').scrollIntoViewIfNeeded()
+    await page.screenshot({ path: info.outputPath(`${layout}-blockcheck-service-evidence.png`) })
+  })
 }
