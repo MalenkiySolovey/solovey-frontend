@@ -14,8 +14,12 @@ for (const layout of ['classic', 'nexus']) {
     const workflow = page.locator('.blockcheck')
     const select = (label: string) => workflow.getByRole('combobox', { name: label, exact: true })
     async function choose(label: string, option: string) {
-      await select(label).press('Enter')
-      await page.getByRole('option', { name: option, exact: true }).click()
+      const control = select(label)
+      await workflow.locator('.v-select').filter({ has: page.getByRole('combobox', { name: label, exact: true }) }).locator('.v-field').click()
+      const menu = page.getByRole('listbox', { name: label, exact: true })
+      await menu.getByRole('option', { name: option, exact: true }).click()
+      await expect(control).toHaveValue(option)
+      await expect(menu).toBeHidden()
     }
     const start = workflow.getByRole('button', { name: 'Check all groups', exact: true })
     await expect(workflow.getByText(/No authorized ingress can verify/)).toBeVisible()
@@ -99,7 +103,16 @@ for (const layout of ['classic', 'nexus']) {
     }))
     const run = { all: true, id: 'fixture', groupIds: ids, path, family: 'ipv4', depth: 'quick', startedAt, finishedAt, phase: 'COMPLETED',
       progress: { groupsDone: 4, totalGroups: 4, probesDone: 6, totalProbes: 6 }, groups }
-    await page.route(`**/${base}/history`, route => route.fulfill({ json: { success: true, msg: '', obj: { version: 1, runs: [run] } } }))
+    const stunPath = { mode: 'OUTBOUND', ref: 'fixture-direct' }
+    const stunRun = { ...run, all: false, id: 'fixture-stun', groupIds: ['stun-controls'], path: stunPath,
+      progress: { groupsDone: 1, totalGroups: 1, probesDone: 2, totalProbes: 2 }, groups: [{
+        report: { job: { jobId: 'report-stun', phase: 'COMPLETED' }, path: stunPath, groupId: 'stun-controls', groupRevision: 'fixture-v1', family: 'ipv4',
+          pathEvidence: { host: { id: 'local' }, generation: 'fixture-core', scope: 'outbound-pinned-ip' }, startedAt, finishedAt,
+          results: [row(0, 'stun', 'stun', 'ok'), row(1, 'stun', 'udp', 'connection_failed')] },
+        targets: [{ name: 'Binding response', host: 'binding.fixture.example', role: 'Voice' },
+          { name: 'Socket failure', host: 'socket.fixture.example', role: 'Voice' }],
+      }] }
+    await page.route(`**/${base}/history`, route => route.fulfill({ json: { success: true, msg: '', obj: { version: 1, runs: [run, stunRun] } } }))
     await page.goto('hosts/local/blockcheck')
     const workflow = page.locator('.blockcheck')
     await expect(workflow.locator('.overview-counts dd')).toHaveText(['1', '1', '1', '1'])
@@ -114,5 +127,17 @@ for (const layout of ['classic', 'nexus']) {
     expect(losesWidth).toBe(false)
     await workflow.locator('#blockcheck-results').scrollIntoViewIfNeeded()
     await page.screenshot({ path: info.outputPath(`${layout}-blockcheck-service-evidence.png`) })
+
+    await workflow.locator('[data-group-id="stun-controls"]').getByRole('button', { name: 'Group details' }).click()
+    const binding = workflow.locator('.target-result').filter({ hasText: 'binding.fixture.example' })
+    const socket = workflow.locator('.target-result').filter({ hasText: 'socket.fixture.example' })
+    const observedBinding = binding.locator('[data-stage="stun"][data-availability="available"]')
+    await expect(observedBinding).toBeVisible()
+    await expect(observedBinding).toContainText('STUN Binding')
+    await expect(socket.locator('[data-stage="udp"][data-availability="unavailable"]')).toBeVisible()
+    await expect(socket.locator('[data-stage="stun"][data-availability="unconfirmed"]')).toContainText('Not observed')
+    await workflow.locator('#blockcheck-results').scrollIntoViewIfNeeded()
+    expect(await workflow.evaluate(element => element.scrollWidth > element.clientWidth + 1)).toBe(false)
+    await page.screenshot({ path: info.outputPath(`${layout}-blockcheck-stun-evidence.png`) })
   })
 }
