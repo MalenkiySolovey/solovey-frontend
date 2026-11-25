@@ -33,7 +33,7 @@ export function isZapretDNSTransport(type: unknown): boolean {
   return type === 'tcp' || type === 'udp' || type === 'https' || type === 'tls' || type === 'quic' || type === 'h3'
 }
 
-const socketOwners = ['direct', 'http', 'hysteria2', 'tuic', 'vless', 'vmess', 'trojan', 'anytls', 'shadowtls', 'ssh', 'socks', 'shadowsocks'] as const
+const socketOwners = ['direct', 'http', 'hysteria2', 'tuic', 'vless', 'vmess', 'trojan', 'anytls', 'shadowtls', 'ssh', 'socks', 'shadowsocks', 'snell'] as const
 
 export function isZapretSocketOwner(type: unknown): type is (typeof socketOwners)[number] {
   return socketOwners.some(owner => owner === type)

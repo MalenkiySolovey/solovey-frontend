@@ -75,9 +75,10 @@ describe('Zapret Dial Options', () => {
 
   it('projects the actual outer network, not the logical proxy network', () => {
     const endpoint = { server: 'proxy.example.test', server_port: 443 }
-    for (const type of ['vless', 'vmess', 'trojan', 'anytls', 'shadowtls', 'ssh']) {
+    for (const type of ['vless', 'vmess', 'trojan', 'anytls', 'shadowtls', 'ssh', 'snell']) {
       expect(zapretDialScope({ ...endpoint, type, network: 'udp' })).toBe('zapretDial.outerProxyTCP')
     }
+    expect(zapretOutboundConflict({ ...endpoint, type: 'snell', detour: 'underlay' })).toBe('zapretDial.detoured')
     for (const type of ['vless', 'vmess', 'trojan']) {
       expect(zapretDialScope({ ...endpoint, type, transport: {} })).toBe('zapretDial.outerProxyTCP')
       expect(zapretDialScope({ ...endpoint, type, transport: { type: 'ws' } })).toBe('zapretDial.outerProxyTCP')
