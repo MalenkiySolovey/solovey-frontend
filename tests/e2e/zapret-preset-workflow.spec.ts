@@ -53,7 +53,9 @@ for (const layout of ['classic', 'nexus']) {
 
     const imported = Buffer.from('\uFEFF-- managed by operator\r\n-- original CRLF\r\n', 'utf8')
     await click('Import Lua file')
-    await dialog.locator('input[type=file]').setInputFiles({ name: `${external}.lua`, buffer: imported, mimeType: 'text/plain' })
+    const filename = `${layout}_library.lua`
+    await dialog.locator('input[type=file]').setInputFiles({ name: filename, buffer: imported, mimeType: 'text/plain' })
+    await expect(dialog.getByText(filename, { exact: true })).toBeVisible()
     await expect(dialog.getByRole('textbox', { name: 'Draft ID' })).toHaveValue(external)
     await expect(dialog.getByText(/Solovey has not verified this source/)).toBeVisible()
     await expect(save).toBeDisabled()
