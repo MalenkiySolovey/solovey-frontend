@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import { expect, test } from '@playwright/test'
-import { enableComponent, login } from './helpers'
+import { enableComponent, login, reviewZapretFile } from './helpers'
 
 for (const mode of ['classic', 'nexus']) {
   test(`${mode} keeps ordered HTTP actions and bounded port ranges through both editors and transfer`, async ({ page }, info) => {
@@ -9,7 +9,7 @@ for (const mode of ['classic', 'nexus']) {
     await enableComponent(page, 'zapret')
     await page.goto('zapret')
     await page.getByRole('button', { name: 'New strategy', exact: true }).click()
-    const dialog = page.getByRole('dialog')
+    const dialog = page.getByTestId('zapret-strategy-editor')
     const name = `${mode} ordered HTTP actions`
     await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill(name)
     await dialog.getByRole('button', { name: 'HTTP/TCP preset', exact: true }).click()
@@ -27,9 +27,9 @@ for (const mode of ['classic', 'nexus']) {
     const rawButton = dialog.getByRole('button', { name: 'Native options', exact: true })
     await rawButton.click()
     await expect(raw).toHaveValue(/--lua-desync=http_hostcase:spell=hOsT\n--lua-desync=http_domcase\n/)
-    const extra = Array.from({ length: 17 }, (_, i) => `--new=extra-${i + 1} --filter-tcp=${80 + i}\n`).join('')
+    const extra = Array.from({ length: 17 }, (_, i) => `--new=extra-${i + 1}\n--filter-tcp=${80 + i}\n`).join('')
     const original = (await raw.inputValue()).replace('spell=hOsT', 'spell=HOST')
-      .replace(/^--filter-tcp=80$/m, '--filter-tcp=80-119,65534-65535') + '\n' + extra
+      .replace(/^--filter-tcp=80$/m, '--filter-tcp=80-119,65534-65535') + extra
     await raw.fill(original)
     await dialog.getByRole('button', { name: 'Profiles', exact: true }).click()
     await expect(spelling).toHaveValue('HOST')
@@ -52,9 +52,9 @@ for (const mode of ['classic', 'nexus']) {
     expect(transfer.strategy.definition.profiles[0].ports).toEqual([...Array.from({ length: 40 }, (_, i) => 80 + i), 65534, 65535])
 
     await row.getByRole('button', { name: 'Delete strategy', exact: true }).click()
-    await dialog.getByRole('button', { name: 'Delete strategy', exact: true }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Delete strategy', exact: true }).click()
     await expect(row).toHaveCount(0)
-    await page.locator('.zapret-catalog input[type=file]').setInputFiles({ name: 'http-actions.json', mimeType: 'application/json', buffer: bytes })
+    await reviewZapretFile(page, 'http-actions.json', bytes)
     await expect(row).toBeVisible()
     await row.getByRole('button', { name: 'Edit strategy', exact: true }).click()
     await rawButton.click()

@@ -41,6 +41,9 @@
         </v-row>
         <DialVue :dial="dnsServer" context="dns" v-if="!WithoutDial.includes(dnsServer.type)" />
         <oTlsVue :outbound="dnsServer" :mandatory="true" v-if="HasTls.includes(dnsServer.type)" />
+        <v-alert v-if="HasTls.includes(dnsServer.type) && dnsServer.tls?.insecure === true" type="warning" variant="tonal" density="compact" class="my-3">
+          {{ $t('dns.unverifiedTLS') }}
+        </v-alert>
         <Headers :data="dnsServer" v-if="HasHeaders.includes(dnsServer.type)" />
         <v-row v-if="dnsServer.type === 'sdns'">
           <v-col cols="12">

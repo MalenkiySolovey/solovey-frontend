@@ -79,6 +79,7 @@
               <OutTLS v-if="outbound.type !== outTypes.MASQUE && Object.hasOwn(outbound,'tls')" :outbound="outbound" />
               <Multiplex v-if="![outTypes.TrustTunnel, outTypes.Sudoku].includes(outbound.type) && Object.hasOwn(outbound,'multiplex')" direction="out" :data="outbound" />
               <Dial v-if="!NoDial.includes(outbound.type)" :dial="outbound" context="outbound" />
+              <ZapretEgressStatus v-else-if="showZapretGroupStatus" :selected="outbound" />
             </v-window-item>
             <v-window-item value="t2">
               <v-row>

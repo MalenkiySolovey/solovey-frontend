@@ -65,6 +65,7 @@
       <OutTLS v-if="outbound.type !== outTypes.MASQUE && Object.hasOwn(outbound,'tls')" :outbound="outbound" />
       <Multiplex v-if="![outTypes.TrustTunnel, outTypes.Sudoku].includes(outbound.type) && Object.hasOwn(outbound,'multiplex')" direction="out" :data="outbound" />
       <Dial v-if="!NoDial.includes(outbound.type)" :dial="outbound" context="outbound" />
+      <ZapretEgressStatus v-else-if="showZapretGroupStatus" :selected="outbound" />
     </form-section>
 
     <form-section icon="lucide:globe" :title="$t('client.external')" :default-open="false">
