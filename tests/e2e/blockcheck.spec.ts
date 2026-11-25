@@ -14,8 +14,12 @@ for (const layout of ['classic', 'nexus']) {
     const workflow = page.locator('.blockcheck')
     const select = (label: string) => workflow.getByRole('combobox', { name: label, exact: true })
     async function choose(label: string, option: string) {
-      await select(label).press('Enter')
-      await page.getByRole('option', { name: option, exact: true }).click()
+      const control = select(label)
+      await control.click()
+      const menu = page.getByRole('listbox', { name: label, exact: true })
+      await menu.getByRole('option', { name: option, exact: true }).click()
+      await expect(control).toHaveValue(option)
+      await expect(menu).toBeHidden()
     }
     const start = workflow.getByRole('button', { name: 'Check all groups', exact: true })
     await expect(workflow.getByText(/No authorized ingress can verify/)).toBeVisible()
