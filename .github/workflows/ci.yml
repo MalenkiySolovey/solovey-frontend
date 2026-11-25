@@ -73,11 +73,11 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - name: Explicit accepted Backend integration fixture (never a build source)
+      - name: Pinned Product Backend integration fixture (never a build source)
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: MalenkiySolovey/solovey-ui
-          ref: 9607250a13021969698ed153a5851898132ef598
+          ref: 3178d2b95f636c339e38c1842fdee61f3ed858e5
           path: .fixtures/product
           persist-credentials: false
       - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
@@ -126,7 +126,8 @@ jobs:
           tests/e2e/panel-operability-ownership.spec.ts tests/e2e/nexus-layout.spec.ts
           tests/e2e/security-headers.spec.ts tests/e2e/embedded-assets.spec.ts
           tests/e2e/zapret.spec.ts tests/e2e/zapret-http-actions.spec.ts
-          tests/e2e/zapret-outgoing-range.spec.ts tests/e2e/zapret-preset-workflow.spec.ts --retries=0
+          tests/e2e/zapret-outgoing-range.spec.ts tests/e2e/zapret-preset-workflow.spec.ts
+          tests/e2e/zapret-portable-import.spec.ts --retries=0
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
