@@ -103,6 +103,13 @@ for (const layout of ['classic', 'nexus']) {
     }))
     const run = { all: true, id: 'fixture', groupIds: ids, path, family: 'ipv4', depth: 'quick', startedAt, finishedAt, phase: 'COMPLETED',
       progress: { groupsDone: 4, totalGroups: 4, probesDone: 6, totalProbes: 6 }, groups }
+    const priorRun = (id: string, timestamp: string, generation: string, priorRows: typeof rows) => ({ ...run,
+      id, startedAt: timestamp, finishedAt: timestamp, groups: groups.map((entry, index) => ({ ...entry, report: {
+        ...entry.report, job: { ...entry.report.job, jobId: `${id}-${ids[index]}` },
+        startedAt: timestamp, finishedAt: timestamp, pathEvidence: { ...entry.report.pathEvidence, generation }, results: priorRows[index],
+      } })) })
+    const previous = priorRun('fixture-previous', '2026-11-25T17:58:00Z', 'fixture-core', [rows[0], rows[2], rows[1], rows[3]])
+    const different = priorRun('fixture-other-generation', '2026-11-25T17:59:00Z', 'retired-core', rows)
     const stunPath = { mode: 'OUTBOUND', ref: 'fixture-direct' }
     const stunRun = { ...run, all: false, id: 'fixture-stun', groupIds: ['stun-controls'], path: stunPath,
       progress: { groupsDone: 1, totalGroups: 1, probesDone: 2, totalProbes: 2 }, groups: [{
@@ -112,10 +119,19 @@ for (const layout of ['classic', 'nexus']) {
         targets: [{ name: 'Binding response', host: 'binding.fixture.example', role: 'Voice' },
           { name: 'Socket failure', host: 'socket.fixture.example', role: 'Voice' }],
       }] }
-    await page.route(`**/${base}/history`, route => route.fulfill({ json: { success: true, msg: '', obj: { version: 1, runs: [run, stunRun] } } }))
+    await page.route(`**/${base}/history`, route => route.fulfill({ json: { success: true, msg: '', obj: { version: 1, runs: [run, different, previous, stunRun] } } }))
     await page.goto('hosts/local/blockcheck')
     const workflow = page.locator('.blockcheck')
     await expect(workflow.locator('.overview-counts dd')).toHaveText(['1', '1', '1', '1'])
+    const overview = workflow.locator('.result-overview')
+    await expect(overview).toContainText(/Group availability changed: 2.*Compared with.*actual path was not confirmed/)
+    await overview.locator('.aggregate-changes summary').click()
+    const transitions = overview.locator('.aggregate-changes li')
+    await expect(transitions).toHaveText([/Discord:\s*Unavailable\s*→\s*Available/, /YouTube:\s*Available\s*→\s*Unavailable/])
+    await overview.scrollIntoViewIfNeeded()
+    await page.screenshot({ path: info.outputPath(`${layout}-blockcheck-history-comparison.png`) })
+    await workflow.locator('[data-group-id="discord"]').getByRole('button', { name: 'Group details' }).click()
+    await expect(workflow.getByText(/Probe availability changed: 1.*Compared with/)).toBeVisible()
     const telegram = workflow.locator('[data-group-id="telegram"]')
     await expect(telegram.getByText('Limited', { exact: true })).toBeVisible()
     await expect(telegram.getByText('Voice (STUN)', { exact: true }).first()).toBeVisible()
@@ -161,6 +177,10 @@ for (const layout of ['classic', 'nexus']) {
       const rows = [
         { ...cell, probe: 'https-chrome', stage: 'http', status: 'http_response', attemptedAddress: '198.51.100.4',
           addressFamily: 'ipv4', tlsProfile: 'chrome-133', tlsVersion: 'TLS 1.3', tlsVerified: true, httpStatus: 204, httpProtocol: 'HTTP/2', httpResponseStartMs: 0 },
+        { ...cell, elapsedMs: 3300, probe: 'https-data', stage: 'transfer', status: 'http_response', attemptedAddress: '198.51.100.4',
+          addressFamily: 'ipv4', tlsVersion: 'TLS 1.3', tlsVerified: true, httpStatus: 200, httpResponseStartMs: 12, bodyBytes: 4096,
+          bodyExpected: 4096, bodyReadMs: 3100, bodyMaxGapMs: 2700,
+          interpretation: { code: 'transfer_pause_observed', confidence: 'observed', alternatives: ['service_or_proxy', 'client_scheduling'] } },
         { ...cell, probe: 'tls13', stage: 'tls', status: 'connection_reset', attemptedAddress: '2001:db8::4', addressFamily: 'ipv6',
           interpretation: { code: 'tls_handshake_incomplete', confidence: 'observed', alternatives: ['intermediary', 'tls_compatibility'] } },
         { ...cell, probe: 'tcp', stage: 'tcp', status: 'unobservable', reason: 'proxy_connect_not_endpoint_proof' },
@@ -194,8 +214,15 @@ for (const layout of ['classic', 'nexus']) {
     await expect(ipv4).toContainText('Chrome 133 TLS profile')
     await expect(ipv4).toContainText('HTTP/2')
     await expect(ipv4).toContainText('HTTP response began after 0 ms')
+    const transfer = ipv4.getByRole('listitem').filter({ hasText: 'HTTPS transfer' })
+    await expect(transfer).toContainText('HTTP response began after 12 ms')
+    await expect(transfer).toContainText('Body read time: 3.1 s')
+    await expect(transfer).toContainText('Longest interval between body reads: 2.7 s')
+    await expect(transfer).toContainText('Observed in this probe; cause unknown')
+    await expect(transfer).toContainText('There was a pause between body reads in this sample.')
+    await expect(ipv4.locator('[data-stage="transfer"][data-availability="available"]')).toBeVisible()
     await expect(ipv6.locator('[data-stage="tls"][data-availability="unavailable"]')).toBeVisible()
-    await expect(ipv6.locator('[data-stage="certificate"], [data-stage="http"]')).toHaveCount(0)
+    await expect(ipv6.locator('[data-stage="certificate"], [data-stage="http"], [data-stage="transfer"]')).toHaveCount(0)
     await expect(ipv6).not.toContainText('HTTP response began')
     await expect(ipv6).toContainText('The TLS handshake did not finish on the selected path.')
     await expect(unknown.locator('[data-stage="tcp"][data-availability="unconfirmed"]')).toBeVisible()
