@@ -77,7 +77,7 @@ export function zapretEgress(rows: readonly EgressRow[], selected: string | Egre
       continue
     }
     if (zapretOutboundConflict(row)) return { state: 'unqualified' }
-    return { state: 'known', kind: row.type === 'direct' ? 'direct' : 'proxy', tag, proxied,
+    return { state: 'known', kind: row.type === 'direct' ? row.type : 'proxy', tag, proxied,
       binding: row.zapret?.enabled && row.zapret.outboundRef === tag ? row.zapret : undefined }
   }
   return { state: 'unresolved' }
