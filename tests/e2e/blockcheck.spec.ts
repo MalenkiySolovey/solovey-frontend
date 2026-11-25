@@ -15,7 +15,7 @@ for (const layout of ['classic', 'nexus']) {
     const select = (label: string) => workflow.getByRole('combobox', { name: label, exact: true })
     async function choose(label: string, option: string) {
       const control = select(label)
-      await workflow.locator('.v-select').filter({ has: control }).locator('.v-field').click()
+      await workflow.locator('.v-select').filter({ has: page.getByRole('combobox', { name: label, exact: true }) }).locator('.v-field').click()
       const menu = page.getByRole('listbox', { name: label, exact: true })
       await menu.getByRole('option', { name: option, exact: true }).click()
       await expect(control).toHaveValue(option)
