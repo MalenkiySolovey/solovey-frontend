@@ -148,7 +148,9 @@
 <script lang="ts" setup>
 import CapabilityBadge from '@/components/fields/CapabilityBadge.vue'
 import { useResourceAvailability } from '@/features/useResourceAvailability'
+import { useBlockCheckLink } from '@/features/useBlockCheckLink'
 const { resourceAvailability, canCreate } = useResourceAvailability('outbounds')
+const { canOpenBlockCheck, openBlockCheck } = useBlockCheckLink()
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -287,6 +289,7 @@ const outboundActions = (item: OutboundRow): RowAction[] => [
   { key: 'down', labelKey: 'table.moveDown', icon: 'lucide:arrow-down', inline: true, reserveSpace: true, hidden: search.value.trim().length > 0 || props.outbounds.findIndex(row => row.id === item.id) === props.outbounds.length - 1 },
   { key: 'edit', labelKey: resourceAvailability(item).historical ? 'capability.inspect' : 'actions.edit', icon: 'lucide:pencil', inline: true },
   { key: 'stats', labelKey: 'stats.graphTitle', icon: 'lucide:line-chart', inline: true, hidden: !props.enableTraffic },
+  { key: 'blockcheck', labelKey: 'blockcheck.title', icon: 'lucide:network', hidden: !canOpenBlockCheck.value },
   { key: 'del', labelKey: 'actions.del', icon: 'lucide:trash-2', tone: 'error', divider: true },
 ]
 
@@ -303,6 +306,9 @@ const handleAction = async (key: string, item: OutboundRow) => {
       break
     case 'stats':
       emit('stats', item.tag)
+      break
+    case 'blockcheck':
+      await openBlockCheck({ outbound: item.tag })
       break
     case 'del': {
       const discard = await confirm({

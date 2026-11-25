@@ -1,0 +1,63 @@
+import { expect, test } from '@playwright/test'
+import { csrfToken, enableComponent, login, mutationHeaders } from './helpers'
+
+for (const layout of ['classic', 'nexus']) {
+  test(`${layout} keeps BlockCheck groups and path choices in one host workflow`, async ({ page }, info) => {
+    await page.addInitScript(value => window.localStorage.setItem('sui:ui:mode', value), layout)
+    await login(page)
+    await enableComponent(page, 'observability-extra')
+    await enableComponent(page, 'blockcheck')
+    await page.goto('hosts/local/diagnostics')
+    await expect(page.locator('.diagnostics')).toBeVisible()
+    await page.getByRole('button', { name: 'BlockCheck', exact: true }).click()
+    await expect(page).toHaveURL(/\/hosts\/local\/blockcheck$/)
+    const workflow = page.locator('.blockcheck')
+    const select = (label: string) => workflow.getByRole('combobox', { name: label, exact: true })
+    const start = workflow.getByRole('button', { name: 'Start', exact: true })
+    await expect(workflow.getByText(/No authorized ingress can verify/)).toBeVisible()
+    await expect(start).toBeDisabled()
+    await select('Path').click()
+    await page.getByRole('option', { name: 'Host baseline', exact: true }).click()
+    await expect(workflow.getByText(/cannot verify that this flow and its DNS/)).toBeVisible()
+    await expect(start).toBeDisabled()
+    await select('Path').click()
+    await page.getByRole('option', { name: 'Selected outbound', exact: true }).click()
+    await expect(select('Applied outbound')).toBeVisible()
+    await expect(start).toBeDisabled()
+
+    const name = `BlockCheck ${layout} fixture`
+    await workflow.getByRole('button', { name: 'New group', exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByRole('textbox', { name: 'Name', exact: true }).first().fill(name)
+    await dialog.getByRole('textbox', { name: 'Name', exact: true }).last().fill('Fixture origin')
+    await dialog.getByRole('textbox', { name: 'Hostname or IP', exact: true }).fill('fixture.example')
+    await dialog.getByRole('textbox', { name: 'Role', exact: true }).fill('Controlled fixture')
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(workflow.getByText('fixture.example', { exact: true })).toBeVisible()
+    await workflow.getByRole('button', { name: 'Edit group', exact: true }).click()
+    await dialog.getByRole('textbox', { name: 'Name', exact: true }).first().fill(`${name} edited`)
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(dialog).toBeHidden()
+    await page.reload()
+    await select('Service group').click()
+    await page.getByRole('option', { name: `${name} edited`, exact: true }).click()
+    await expect(workflow.getByText('fixture.example', { exact: true })).toBeVisible()
+    if (layout === 'nexus') await page.setViewportSize({ width: 390, height: 844 })
+    await workflow.screenshot({ path: info.outputPath(`${layout}-blockcheck.png`) })
+    await workflow.getByRole('button', { name: 'Service group', exact: true }).click()
+    await page.getByText('Delete group', { exact: true }).click()
+    await dialog.getByRole('button', { name: 'Delete group', exact: true }).click()
+    await expect(workflow.getByText('fixture.example', { exact: true })).toHaveCount(0)
+
+    const disabled = await page.request.post('api/update/components/blockcheck/disable', {
+      headers: mutationHeaders(await csrfToken(page)),
+    })
+    expect(disabled.ok()).toBeTruthy()
+    expect((await disabled.json()).success).toBe(true)
+    const denied = await page.request.get('api/components/blockcheck/groups')
+    expect(denied.status()).toBe(409)
+    await page.goto('hosts/local/diagnostics')
+    await expect(page.locator('.diagnostics')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'BlockCheck', exact: true })).toHaveCount(0)
+  })
+}

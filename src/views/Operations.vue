@@ -5,7 +5,10 @@
         <h1 class="text-h4">{{ t('operations.title') }}</h1>
         <p class="mb-0">{{ t('operations.subtitle') }}</p>
       </div>
-      <v-btn variant="outlined" :loading="loading" @click="loadAll">{{ t('operations.refresh') }}</v-btn>
+      <div class="d-flex flex-wrap ga-2">
+        <v-btn v-if="canOpenBlockCheck" variant="text" prepend-icon="mdi-lan-check" @click="openBlockCheck()">BlockCheck</v-btn>
+        <v-btn variant="outlined" :loading="loading" @click="loadAll">{{ t('operations.refresh') }}</v-btn>
+      </div>
     </header>
 
     <nav class="section-nav mb-5" :aria-label="t('operations.sectionNavigation')">
@@ -469,6 +472,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useBlockCheckLink } from '@/features/useBlockCheckLink'
 import { getSecurityPosture, getSecuritySessions, acquireStepUpToken, type SecurityPosture, type SessionInventory } from '@/shared/composables/useSecurityOperations'
 import { getSSHPosture, type SSHPostureEnvelope } from '@/shared/composables/useSSHManagement'
 import { getDeploymentStatus, deploymentMessage, type DeploymentStatus } from '@/shared/composables/useDeployment'
@@ -483,6 +487,7 @@ import {
 } from '@/shared/composables/useOperations'
 
 const { t, locale } = useI18n()
+const { canOpenBlockCheck, openBlockCheck } = useBlockCheckLink()
 const loading = ref(true), updateWorking = ref(false), dataWorking = ref(false)
 const errorMessage = ref(''), liveStatus = ref('')
 const summary = ref<OperationsStatus | null>(null)
