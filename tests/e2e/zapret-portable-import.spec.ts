@@ -1,7 +1,8 @@
 import fs from 'node:fs/promises'
 import { createHash } from 'node:crypto'
+import path from 'node:path'
 import { expect, test } from '@playwright/test'
-import { csrfToken, enableComponent, login, mutationHeaders, reviewZapretFile } from './helpers'
+import { csrfToken, enableComponent, frontendRoot, login, mutationHeaders, reviewZapretFile } from './helpers'
 
 const catalog = 'api/components/zapret/strategies'
 
@@ -49,7 +50,7 @@ for (const layout of ['classic', 'nexus']) {
     expect(plain.raw).toContain('--filter-tcp=18080-18081\n--filter-udp=18443,18445')
 
     // Authored v1 portable archive with a standalone documentation-network IP set.
-    const file = await fs.readFile(new URL('./fixtures/zapret-portable-v1.zip', import.meta.url))
+    const file = await fs.readFile(path.join(frontendRoot, 'tests/e2e/fixtures/zapret-portable-v1.zip'))
     const owned = 'portable-wire'
     const alternate = `imported-wire-${layout}`
     const seedOwned = !current.catalog.lists?.[owned]
