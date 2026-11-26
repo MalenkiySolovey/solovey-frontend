@@ -22,7 +22,7 @@ for (const layout of ['classic', 'nexus']) {
       await expect(menu).toBeHidden()
     }
     const start = workflow.getByRole('button', { name: 'Check all groups', exact: true })
-    await expect(workflow.getByText(/No authorized ingress can verify/)).toBeVisible()
+    await expect(workflow.getByText(/No active HTTP or mixed ingress/)).toBeVisible()
     await expect(start).toBeDisabled()
     await choose('Path', 'Host baseline')
     await expect(workflow.getByText(/cannot verify that this flow and its DNS/)).toBeVisible()
@@ -245,5 +245,76 @@ for (const layout of ['classic', 'nexus']) {
     expect(await workflow.evaluate(element => element.scrollWidth > element.clientWidth + 1)).toBe(false)
     await workflow.locator('#blockcheck-results').scrollIntoViewIfNeeded()
     await page.screenshot({ path: info.outputPath(`${layout}-blockcheck-address-evidence.png`) })
+  })
+
+  test(`${layout} uses the chosen Panel ingress and distinguishes routing from endpoint evidence`, async ({ page }, info) => {
+    await page.addInitScript(value => window.localStorage.setItem('sui:ui:mode', value), layout)
+    if (layout === 'nexus') await page.setViewportSize({ width: 390, height: 844 })
+    await login(page)
+    await enableComponent(page, 'blockcheck')
+    const base = 'api/components/blockcheck'
+    const path = { mode: 'PANEL', ref: 'fixture-ingress-b' }
+    const groupId = 'discord'
+    const startedAt = '2026-11-25T18:01:00Z'
+    const finishedAt = '2026-11-25T18:01:01Z'
+    // Keep the real Backend catalog; replay only the path choices and observations.
+    await page.route(`**/${base}/options`, route => route.fulfill({ json: { success: true, msg: '', obj: {
+      outbounds: ['fixture-direct'], resolvers: ['fixture-resolver'], ingresses: ['fixture-ingress-a', path.ref],
+      unavailable: { HOST_BASELINE: 'host_baseline_not_observable' },
+    } } }))
+    await page.route(`**/${base}/run/stream`, route => {
+      const actual = route.request().postDataJSON()
+      expect(actual.groupId).toBe(groupId)
+      expect(actual.path).toEqual(path)
+      const cell = { target: 0, targetRef: 'fixture-web', elapsedMs: 120, dnsContext: 'active-core-dns-with-ingress', answerCount: 1 }
+      const rows = [
+        { ...cell, probe: 'https', stage: 'http', status: 'http_response', httpStatus: 204,
+          tlsVersion: 'TLS 1.3', tlsVerified: true, attemptedAddress: '198.51.100.4', addressFamily: 'ipv4',
+          socket: { egress: 'fixture-direct', routeSelectionOnly: true } },
+        { ...cell, probe: 'tls13', stage: 'route', status: 'unobservable', reason: 'panel_final_address_unverified' },
+        { ...cell, probe: 'tcp', stage: 'tcp', status: 'unsupported' },
+      ]
+      const active = { operationId: 'fixture-panel-run', phase: 'RUNNING', cancelSupported: true }
+      const done = { ...active, phase: 'COMPLETED', cancelSupported: false }
+      const progress = { groupsDone: 0, totalGroups: 1, probesDone: 0, totalProbes: rows.length }
+      const finalProgress = { ...progress, groupsDone: 1, probesDone: rows.length }
+      const group = { id: groupId, completed: rows.length, total: rows.length }
+      const report = { job: { jobId: 'fixture-panel-report', phase: 'COMPLETED' }, groupId, groupRevision: 'fixture-v1',
+        family: 'any', path, pathEvidence: { host: { id: 'local' }, generation: 'fixture-core', scope: 'panel-local-anonymous-proxy', context: path.ref },
+        startedAt, finishedAt }
+      const events = [
+        { kind: 'started', job: active, progress, startedAt },
+        { kind: 'progress', job: active, progress: { ...progress, probesDone: rows.length }, group, rows },
+        { kind: 'group', job: active, progress: finalProgress, group, report },
+        { kind: 'finished', job: done, progress: finalProgress, startedAt, finishedAt },
+      ]
+      return route.fulfill({ contentType: 'application/x-ndjson', body: events.map(event => JSON.stringify(event)).join('\n') + '\n' })
+    })
+
+    await page.goto('hosts/local/blockcheck')
+    const workflow = page.locator('.blockcheck')
+    const ingress = workflow.getByRole('combobox', { name: 'Applied ingress', exact: true })
+    await expect(ingress).toHaveValue('fixture-ingress-a')
+    await expect(workflow.getByRole('combobox', { name: 'DNS server (optional)', exact: true })).toHaveCount(0)
+    await workflow.locator('.v-select').filter({ has: page.getByRole('combobox', { name: 'Applied ingress', exact: true }) }).locator('.v-field').click()
+    await page.getByRole('option', { name: path.ref, exact: true }).click()
+    await expect(ingress).toHaveValue(path.ref)
+    const card = workflow.locator(`[data-group-id="${groupId}"]`)
+    await expect(workflow.getByRole('button', { name: 'Check all groups', exact: true })).toBeEnabled()
+    await card.getByRole('button', { name: 'Check', exact: true }).click()
+    await card.getByRole('button', { name: 'Group details', exact: true }).click()
+    const scopes = workflow.locator('.attempt-scope')
+    const address = scopes.filter({ has: page.getByRole('heading', { name: 'Destination tried: 198.51.100.4', exact: true }) })
+    await expect(address.locator('[data-stage="route"][data-availability="available"]')).toBeVisible()
+    await expect(address.locator('[data-stage="http"][data-availability="available"]')).toBeVisible()
+    await expect(address.locator('[data-stage="tcp"]')).toHaveCount(0)
+    await expect(address).toContainText('Route selected fixture-direct; endpoint TCP handshake not observed')
+    const unknown = scopes.filter({ has: page.getByRole('heading', { name: 'Observations without a recorded address', exact: true }) })
+    await expect(unknown.locator('[data-stage="route"][data-availability="unconfirmed"]')).toBeVisible()
+    await expect(unknown).toContainText('exactly one policy-checked address before dispatch')
+    await expect(unknown.locator('[data-stage="tls"][data-availability="available"], [data-stage="http"]')).toHaveCount(0)
+    await workflow.locator('#blockcheck-results').scrollIntoViewIfNeeded()
+    expect(await workflow.evaluate(element => element.scrollWidth > element.clientWidth + 1)).toBe(false)
+    await page.screenshot({ path: info.outputPath(`${layout}-blockcheck-panel-ingress-evidence.png`) })
   })
 }
