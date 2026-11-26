@@ -152,6 +152,7 @@ const USED_ICONS = [
   'mdi-restart',
   'mdi-restore',
   'mdi-routes',
+  'mdi-script-text-outline',
   'mdi-send',
   'mdi-send-check-outline',
   'mdi-server',
