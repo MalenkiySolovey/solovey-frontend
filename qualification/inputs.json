@@ -1,10 +1,10 @@
 {
   "schema": "solovey.frontend-qualification-input/v1",
-  "productSource": "a618c0c2a288f0915d5466d01b1442b3cd05caed",
-  "archiveSource": "b1a743197d1bb5ccd09cf8298dcc42ea7acdb779",
-  "url": "https://raw.githubusercontent.com/MalenkiySolovey/solovey-ui/b1a743197d1bb5ccd09cf8298dcc42ea7acdb779/tests/fixtures/frontend-build-inputs/e6638647e5fe31ae72fd389b7ff4852848570ebdb2d36d85bedfdc1591bdecf4.json.gz",
-  "archiveSHA256": "fe42acbdb66bbb1c6aa5bcc648904aeff2380274607b8618e7cf0d6a6beeb1ba",
-  "manifestSHA256": "e6638647e5fe31ae72fd389b7ff4852848570ebdb2d36d85bedfdc1591bdecf4",
+  "productSource": "0b8b5fcb04747615a594be36c11d4d6b04f920d8",
+  "archiveSource": "23fdf4d2734f7434b2edd2e21e3e3da7e604cd63",
+  "url": "https://raw.githubusercontent.com/MalenkiySolovey/solovey-ui/23fdf4d2734f7434b2edd2e21e3e3da7e604cd63/tests/fixtures/frontend-build-inputs/9d18517ed2ee7f0b81d46fd9201c23083517b937761e944852d96c07c42fd525.json.gz",
+  "archiveSHA256": "19c1c5aad4a4df39702b1d31a8788fa5d2c07377bd0126e25814997cbfd59a29",
+  "manifestSHA256": "9d18517ed2ee7f0b81d46fd9201c23083517b937761e944852d96c07c42fd525",
   "backend": {
     "module": "github.com/MalenkiySolovey/solovey-backend",
     "version": "v0.1.5",

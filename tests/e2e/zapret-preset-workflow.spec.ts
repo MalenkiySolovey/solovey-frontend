@@ -6,7 +6,8 @@ const catalogPath = 'api/components/zapret/strategies'
 const luaPath = `${catalogPath}/lua-drafts`
 
 for (const layout of ['classic', 'nexus']) {
-  test(`${layout} stores Lua source as a revisioned inert draft`, async ({ page }, info) => {
+  test(`${layout} stores and authorizes exact Lua source revisions`, async ({ page }, info) => {
+    test.setTimeout(90_000)
     await page.addInitScript(value => window.localStorage.setItem('sui:ui:mode', value), layout)
     await login(page)
     await enableComponent(page, 'zapret')
@@ -26,9 +27,9 @@ for (const layout of ['classic', 'nexus']) {
     const external = `${layout}-library`
     const row = (name: string) => page.getByRole('listitem').filter({ has: page.getByText(name, { exact: true }) })
     await page.getByRole('tab', { name: 'Lists & assets' }).click()
-    await expect(page.getByText(/does not isolate individual scripts/)).toBeVisible()
+    await expect(page.getByText(/Saving source does not execute it/)).toBeVisible()
     await click('New Lua draft')
-    await expect(dialog.getByText('Draft only', { exact: true })).toBeVisible()
+    await expect(dialog.getByText('Stored source', { exact: true })).toBeVisible()
     await dialog.getByRole('textbox', { name: 'Draft ID' }).fill(id)
     await script.fill('-- first draft\n')
     await save.click()
@@ -51,12 +52,14 @@ for (const layout of ['classic', 'nexus']) {
     await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
     await click('Refresh')
 
-    const imported = Buffer.from('\uFEFF-- managed by operator\r\n-- original CRLF\r\n', 'utf8')
+    const imported = Buffer.from('\uFEFF-- original CRLF\r\nfunction fixture_callback() return VERDICT_PASS end\r\n', 'utf8')
     await click('Import Lua file')
     const filename = `${layout}_library.lua`
     await dialog.locator('input[type=file]').setInputFiles({ name: filename, buffer: imported, mimeType: 'text/plain' })
     await expect(dialog.getByText(filename, { exact: true })).toBeVisible()
     await expect(dialog.getByRole('textbox', { name: 'Draft ID' })).toHaveValue(external)
+    await dialog.getByRole('combobox', { name: 'Origin', exact: true }).press('ArrowDown')
+    await page.getByRole('option', { name: 'Administrator-authored', exact: true }).click()
     await expect(dialog.getByText(/Solovey has not verified this source/)).toBeVisible()
     await expect(save).toBeDisabled()
     expect((await load(luaPath)).drafts[external]).toBeUndefined()
@@ -67,13 +70,54 @@ for (const layout of ['classic', 'nexus']) {
     await save.click()
     await expect(row(external)).toBeVisible()
     const saved = await load(luaPath)
-    expect(saved.drafts[external]).toEqual({ origin: 'external', sourceRef: 'Unknown origin', source: imported.toString('utf8') })
+    expect(saved.drafts[external]).toEqual({ origin: 'administrator', sourceRef: 'Unknown origin', source: imported.toString('utf8'), imported: true })
     const current = await load(catalogPath)
     expect(current.catalog).toEqual(baseline.catalog)
     expect(current.references).toEqual(baseline.references)
     const download = page.waitForEvent('download')
     await row(external).getByRole('button', { name: 'Export Lua source' }).click()
     expect(await fs.readFile(await (await download).path())).toEqual(imported)
+
+    await page.getByRole('tab', { name: 'Strategies', exact: true }).click()
+    await click('New strategy')
+    const editor = page.getByTestId('zapret-strategy-editor')
+    const name = `${layout} exact Lua revisions`
+    await editor.getByRole('textbox', { name: 'Name', exact: true }).fill(name)
+    await editor.getByRole('button', { name: 'Native options', exact: true }).click()
+    await editor.getByRole('textbox', { name: 'Native options', exact: true }).fill('--filter-tcp=18080 --lua-desync=fixture_callback')
+    await editor.getByText('Lua dependencies (load order)', { exact: true }).click()
+    await editor.getByRole('button', { name: 'Load saved revisions' }).click()
+    const picker = editor.getByRole('combobox', { name: 'Select Lua source revision' })
+    const select = async (ref: string) => {
+      await picker.press('ArrowDown')
+      await page.getByRole('option', { name: `${ref} · ${saved.draftRevisions[ref].slice(0, 12)}`, exact: true }).click()
+    }
+    await select(external)
+    await select(id)
+    const approve = editor.getByRole('checkbox', { name: 'I reviewed and authorize this imported revision' })
+    await expect(approve).not.toBeChecked()
+    await expect(editor.getByText('Imported source', { exact: false })).toBeVisible()
+    await approve.check()
+    await editor.getByRole('button', { name: 'Load Lua dependency earlier' }).last().click()
+    await editor.getByRole('button', { name: 'Validate', exact: true }).click()
+    await expect(editor.getByText('Validated native preview', { exact: true })).toBeVisible()
+    if (layout === 'nexus') await page.setViewportSize({ width: 1280, height: 900 })
+    await page.screenshot({ path: info.outputPath(`${layout}-lua-revisions.png`) })
+    await editor.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(row(name)).toBeVisible()
+    const result = await load(catalogPath)
+    const record = Object.values(result.catalog.records as Record<string, { name: string; definition: { id: string; managedLua: object[] } }>)
+      .find(item => item.name === name)!
+    expect(record.definition.managedLua).toEqual([
+      { id, revision: saved.draftRevisions[id] },
+      { id: external, revision: saved.draftRevisions[external], approveImported: true },
+    ])
+    expect(result.references).toEqual(baseline.references)
+    const removed = await page.request.post(catalogPath, { headers: mutationHeaders(await csrfToken(page)),
+      data: { action: 'delete', id: record.definition.id, expectedRevision: result.revision } })
+    expect((await removed.json()).success).toBe(true)
+    await click('Refresh')
+    await page.getByRole('tab', { name: 'Lists & assets' }).click()
 
     for (const name of [id, external]) {
       await row(name).getByRole('button', { name: 'Delete Lua draft' }).click()
