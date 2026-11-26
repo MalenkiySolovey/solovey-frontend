@@ -168,7 +168,7 @@ for (const layout of ['classic', 'nexus']) {
     await workflow.locator('#blockcheck-results').scrollIntoViewIfNeeded()
     await page.screenshot({ path: info.outputPath(`${layout}-blockcheck-service-evidence.png`) })
 
-    const compare = workflow.getByRole('combobox', { name: 'Compare with', exact: true })
+    const compare = page.getByRole('combobox', { name: 'Compare with', exact: true })
     await workflow.locator('.v-select').filter({ has: compare }).locator('.v-field').click()
     await page.getByRole('listbox', { name: 'Compare with', exact: true }).getByRole('option', { name: /Host baseline/ }).click()
     const comparison = workflow.getByRole('region', { name: 'Run comparison', exact: true })
