@@ -7,7 +7,7 @@ import { csrfToken, enableComponent, frontendRoot, login, mutationHeaders, revie
 const catalog = 'api/components/zapret/strategies'
 
 for (const layout of ['classic', 'nexus']) {
-  test(`${layout}: saves mixed filters and repairs a native ZIP dependency`, async ({ page }, info) => {
+  test(`${layout}: saves compact mixed filters and repairs a native ZIP dependency`, async ({ page }, info) => {
     test.setTimeout(90_000)
     await page.addInitScript(value => window.localStorage.setItem('sui:ui:mode', value), layout)
     await login(page)
@@ -35,19 +35,27 @@ for (const layout of ['classic', 'nexus']) {
     const udp = editor.getByRole('textbox', { name: 'UDP ports and ranges', exact: true })
     await expect(tcp).toHaveValue('18080')
     await expect(udp).toHaveValue('18443')
-    await tcp.fill('18080-18081')
-    await udp.fill('18443,18445')
+    await tcp.fill('18080-18280')
+    await udp.fill('18443,18445-18590')
     await save.click()
     await expect(row(plainName)).toBeVisible()
     const current = await read()
     const find = (state: typeof current, title: string) => Object.entries(state.catalog.records as Record<string, {
       name: string; raw: string; listRefs: Record<string, Record<string, string>>; origin: { sha256: string };
-      definition: { profiles: { id: string; ports: number[]; udpPorts: number[] }[] };
+      definition: { profiles: Array<{ id: string; ports: number[] | null; udpPorts?: number[];
+        portRanges?: Array<{ first: number; last: number }>; udpPortRanges?: Array<{ first: number; last: number }> }> };
     }>).find(([, record]) => record.name === title)!
     const [plainID, plain] = find(current, plainName)
     expect(plain.definition.profiles).toHaveLength(1)
-    expect(plain.definition.profiles[0]).toMatchObject({ id: 'dual', ports: [18080, 18081], udpPorts: [18443, 18445] })
-    expect(plain.raw).toContain('--filter-tcp=18080-18081\n--filter-udp=18443,18445')
+    expect(plain.definition.profiles[0]).toMatchObject({ id: 'dual', ports: null,
+      portRanges: [{ first: 18080, last: 18280 }],
+      udpPortRanges: [{ first: 18443, last: 18443 }, { first: 18445, last: 18590 }] })
+    expect(plain.definition.profiles[0].udpPorts).toBeUndefined()
+    expect(plain.raw).toContain('--filter-tcp=18080-18280\n--filter-udp=18443,18445-18590')
+    await row(plainName).getByRole('button', { name: 'Edit strategy' }).click()
+    await expect(tcp).toHaveValue('18080-18280')
+    await expect(udp).toHaveValue('18443,18445-18590')
+    await editor.getByRole('button', { name: 'Strategies', exact: true }).click()
 
     // Authored v1 portable archive with a standalone documentation-network IP set.
     const file = await fs.readFile(path.join(frontendRoot, 'tests/e2e/fixtures/zapret-portable-v1.zip'))
