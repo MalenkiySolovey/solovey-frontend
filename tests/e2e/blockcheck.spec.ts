@@ -110,6 +110,15 @@ for (const layout of ['classic', 'nexus']) {
       } })) })
     const previous = priorRun('fixture-previous', '2026-11-25T17:58:00Z', 'fixture-core', [rows[0], rows[2], rows[1], rows[3]])
     const different = priorRun('fixture-other-generation', '2026-11-25T17:59:00Z', 'retired-core', rows)
+    const hostPath = { mode: 'HOST_BASELINE' }
+    const hostStartedAt = '2026-11-25T17:57:00Z'
+    const baselineRun = { ...run, all: false, id: 'fixture-host', groupIds: ['telegram'], path: hostPath,
+      startedAt: hostStartedAt, finishedAt: hostStartedAt, progress: { groupsDone: 1, totalGroups: 1, probesDone: 3, totalProbes: 3 }, groups: [{
+        ...groups[0], report: { ...groups[0].report, job: { jobId: 'report-host', phase: 'COMPLETED' }, path: hostPath,
+          pathEvidence: { host: { id: 'local' }, scope: 'ordinary-host-socket', context: 'host-system-dns' },
+          startedAt: hostStartedAt, finishedAt: hostStartedAt,
+          results: [row(0, 'https', 'tls', 'connection_reset'), rows[0][1], row(1, 'stun', 'stun', 'unsupported')] },
+      }] }
     const stunPath = { mode: 'OUTBOUND', ref: 'fixture-direct' }
     const stunRun = { ...run, all: false, id: 'fixture-stun', groupIds: ['stun-controls'], path: stunPath,
       progress: { groupsDone: 1, totalGroups: 1, probesDone: 2, totalProbes: 2 }, groups: [{
@@ -119,7 +128,7 @@ for (const layout of ['classic', 'nexus']) {
         targets: [{ name: 'Binding response', host: 'binding.fixture.example', role: 'Voice' },
           { name: 'Socket failure', host: 'socket.fixture.example', role: 'Voice' }],
       }] }
-    await page.route(`**/${base}/history`, route => route.fulfill({ json: { success: true, msg: '', obj: { version: 1, runs: [run, different, previous, stunRun] } } }))
+    await page.route(`**/${base}/history`, route => route.fulfill({ json: { success: true, msg: '', obj: { version: 1, runs: [run, different, previous, stunRun, baselineRun] } } }))
     await page.goto('hosts/local/blockcheck')
     const workflow = page.locator('.blockcheck')
     await expect(workflow.locator('.overview-counts dd')).toHaveText(['1', '1', '1', '1'])
@@ -158,6 +167,20 @@ for (const layout of ['classic', 'nexus']) {
     expect(losesWidth).toBe(false)
     await workflow.locator('#blockcheck-results').scrollIntoViewIfNeeded()
     await page.screenshot({ path: info.outputPath(`${layout}-blockcheck-service-evidence.png`) })
+
+    const compare = page.getByRole('combobox', { name: 'Compare with', exact: true })
+    await workflow.locator('.v-select').filter({ has: compare }).locator('.v-field').click()
+    await page.getByRole('listbox', { name: 'Compare with', exact: true }).getByRole('option', { name: /Host baseline/ }).click()
+    const comparison = workflow.getByRole('region', { name: 'Run comparison', exact: true })
+    await expect(comparison).toContainText('Selected outbound')
+    await expect(comparison).toContainText('Host baseline')
+    await expect(comparison).toContainText('Compared 1 of 3 probes. Observed results differ on 1.')
+    await expect(comparison).toContainText('This comparison does not establish a cause.')
+    await expect(workflow.getByText('Observed result differs', { exact: true })).toHaveCount(1)
+    await expect(telegram.getByText('Limited', { exact: true })).toBeVisible()
+    await comparison.scrollIntoViewIfNeeded()
+    expect(await workflow.evaluate(element => element.scrollWidth > element.clientWidth + 1)).toBe(false)
+    await page.screenshot({ path: info.outputPath(`${layout}-blockcheck-cross-path-evidence.png`) })
 
     await workflow.locator('[data-group-id="stun-controls"]').getByRole('button', { name: 'Group details' }).click()
     const binding = workflow.locator('.target-result').filter({ hasText: 'binding.fixture.example' })
