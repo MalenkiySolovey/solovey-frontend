@@ -143,7 +143,7 @@ for (const layout of ['classic', 'nexus']) {
     await expect(savedRuns).toHaveCount(3)
     await savedRuns.last().click()
     await expect(detailHeader).toContainText('Unavailable')
-    await expect(workflow.locator('[data-group-id="discord"]').getByText('Available', { exact: true })).toBeVisible()
+    await expect(workflow.locator('[data-group-id="discord"] .v-chip')).toHaveText('Available')
     await detailHeader.getByRole('button', { name: 'Back to groups' }).click()
     await expect(discordDetails).toBeFocused()
     await expect(detailHeader).toHaveCount(0)
