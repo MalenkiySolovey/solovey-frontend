@@ -82,7 +82,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: MalenkiySolovey/solovey-ui
-          ref: a6dbd696efef7a50779e0df538345a2923163fc2
+          ref: d55e9f7b843c8b6e4cbd5b76c8ecb6bc0c09a1d0
           path: .fixtures/product
           persist-credentials: false
       - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
