@@ -195,6 +195,61 @@ for (const layout of ['classic', 'nexus']) {
     await page.screenshot({ path: info.outputPath(`${layout}-blockcheck-stun-evidence.png`) })
   })
 
+  test(`${layout} opens older saved group and Check All results independently`, async ({ page }, info) => {
+    await page.addInitScript(value => window.localStorage.setItem('sui:ui:mode', value), layout)
+    if (layout === 'nexus') await page.setViewportSize({ width: 390, height: 844 })
+    await login(page)
+    await enableComponent(page, 'blockcheck')
+    const base = '/api/components/blockcheck/history'
+    const actual = await page.request.get(`${base.slice(1)}?view=all`)
+    expect(actual.ok()).toBeTruthy()
+    expect(await actual.json()).toMatchObject({ success: true, obj: { version: 1, paged: true, runs: expect.any(Array) } })
+    const groupId = 'discord'
+    const path = { mode: 'OUTBOUND', ref: 'fixture' }
+    const run = (id: string, time: string, available: boolean) => {
+      const startedAt = `2026-11-25T18:${time}:00Z`, finishedAt = `2026-11-25T18:${time}:01Z`
+      return { id, all: true, groupIds: [groupId], path, family: 'ipv4', depth: 'quick', phase: 'COMPLETED', startedAt, finishedAt,
+        progress: { groupsDone: 1, totalGroups: 1, probesDone: 1, totalProbes: 1 }, groups: [{
+          report: { job: { jobId: `report-${id}`, phase: 'COMPLETED' }, groupId, groupRevision: 'fixture-v1', path, family: 'ipv4',
+            pathEvidence: { host: { id: 'local' }, generation: 'fixture-core', scope: 'outbound-pinned-ip' }, startedAt, finishedAt,
+            results: [{ target: 0, targetRef: 'service-web', probe: 'https', stage: available ? 'http' : 'tls',
+              status: available ? 'http_response' : 'connection_reset', httpStatus: available ? 204 : undefined, elapsedMs: 100 }] },
+          targets: [{ name: 'Site', host: 'service.fixture.example', role: 'Website' }],
+        }],
+      }
+    }
+    const latest = run('latest', '10', true), previous = run('previous', '00', false)
+    await page.route(url => url.pathname.endsWith(base), async route => {
+      const { searchParams } = new URL(route.request().url())
+      const scope = searchParams.get('view') ?? searchParams.get('groupId')
+      const before = searchParams.get('before')
+      if (before) expect(before).toBe(`${scope}-cursor`)
+      const runs = before ? [previous] : [latest]
+      await route.fulfill({ json: { success: true, obj: { version: 1, paged: true, runs, next: scope && !before ? `${scope}-cursor` : undefined } } })
+    })
+    await page.goto('hosts/local/blockcheck')
+    const workflow = page.locator('.blockcheck')
+    const olderAll = workflow.getByRole('button', { name: 'Load older Check All runs', exact: true })
+    await olderAll.click()
+    await expect(olderAll).toHaveCount(0)
+    await expect(workflow.locator('.result-overview')).toContainText('Group availability changed: 1')
+    const discord = workflow.locator(`[data-group-id="${groupId}"]`)
+    await discord.getByRole('button', { name: 'Group details', exact: true }).click()
+    const olderGroup = workflow.getByRole('button', { name: 'Load older checks', exact: true })
+    await olderGroup.click()
+    await expect(olderGroup).toHaveCount(0)
+    const select = workflow.getByRole('combobox', { name: 'Run history', exact: true })
+    await workflow.locator('.v-select').filter({ has: select }).locator('.v-field').click()
+    const runs = page.getByRole('listbox', { name: 'Run history', exact: true }).getByRole('option')
+    await expect(runs).toHaveCount(2)
+    await runs.last().click()
+    await expect(workflow.locator('.blockcheck-detail-header')).toContainText('Unavailable')
+    await expect(discord.locator('.v-chip')).toHaveText('Available')
+    expect(await workflow.evaluate(element => element.scrollWidth > element.clientWidth + 1)).toBe(false)
+    await workflow.locator('#blockcheck-results').scrollIntoViewIfNeeded()
+    await page.screenshot({ path: info.outputPath(`${layout}-blockcheck-older-history.png`) })
+  })
+
   test(`${layout} keeps streamed HTTPS and TLS evidence on the address actually tried`, async ({ page }, info) => {
     await page.addInitScript(value => window.localStorage.setItem('sui:ui:mode', value), layout)
     if (layout === 'nexus') await page.setViewportSize({ width: 390, height: 844 })
