@@ -238,7 +238,7 @@ for (const layout of ['classic', 'nexus']) {
     const olderGroup = workflow.getByRole('button', { name: 'Load older checks', exact: true })
     await olderGroup.click()
     await expect(olderGroup).toHaveCount(0)
-    const select = workflow.getByRole('combobox', { name: 'Run history', exact: true })
+    const select = page.getByRole('combobox', { name: 'Run history', exact: true })
     await workflow.locator('.v-select').filter({ has: select }).locator('.v-field').click()
     const runs = page.getByRole('listbox', { name: 'Run history', exact: true }).getByRole('option')
     await expect(runs).toHaveCount(2)
