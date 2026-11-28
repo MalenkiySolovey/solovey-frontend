@@ -119,4 +119,58 @@ for (const layout of ['classic', 'nexus']) {
     if (seedOwned) state = await write({ action: 'delete-list', id: owned, expectedRevision: state.revision })
     expect(state.revision).toBe(baseline.revision)
   })
+
+  test(`${layout}: reviews and saves a large portable list without applying it`, async ({ page }) => {
+    test.setTimeout(90_000)
+    await page.setViewportSize({ width: layout === 'nexus' ? 390 : 1280, height: 900 })
+    await page.addInitScript(value => window.localStorage.setItem('sui:ui:mode', value), layout)
+    await login(page)
+    await enableComponent(page, 'zapret')
+    await page.goto('zapret')
+    const read = async () => {
+      const reply = await (await page.request.get(catalog)).json()
+      expect(reply.success, reply.msg).toBe(true)
+      return reply.obj
+    }
+    const write = async (data: object, expectedRevision: string) => {
+      const reply = await (await page.request.post(catalog, {
+        headers: mutationHeaders(await csrfToken(page)), data: { ...data, expectedRevision },
+      })).json()
+      expect(reply.success, reply.msg).toBe(true)
+      return reply.obj
+    }
+    const baseline = await read()
+    const listID = `${layout}-large-portable-hosts`
+    const name = `${layout} large portable preset`
+    const entries = Array.from({ length: 9000 }, (_, i) => `h${String(i).padStart(5, '0')}.portable-fixture.example.test`)
+    const listed = await write({ action: 'create-list', id: listID, list: { kind: 'hostList', entries } }, baseline.revision)
+    const seeded = await write({ action: 'create', draft: {
+      name, raw: '--name=portable\n--filter-tcp=18080\n', listRefs: { portable: { hostList: listID } },
+    } }, listed.revision)
+    const seed = Object.keys(seeded.catalog.records).find(id => seeded.catalog.records[id].name === name)!
+    const transfer = await (await page.request.get(`${catalog}/${seed}/export?expectedRevision=${seeded.revision}`)).json()
+    expect(transfer.success, transfer.msg).toBe(true)
+    const buffer = Buffer.from(JSON.stringify(transfer.obj))
+    expect(buffer.length).toBeGreaterThan(256 * 1024)
+    expect(buffer.length).toBeLessThanOrEqual(baseline.presetTransferLimit)
+    const removed = await write({ action: 'delete', id: seed }, seeded.revision)
+    expect((await write({ action: 'delete-list', id: listID }, removed.revision)).revision).toBe(baseline.revision)
+
+    await page.reload()
+    await page.getByRole('button', { name: 'Import', exact: true }).click()
+    const review = page.getByRole('dialog')
+    await review.locator('input[type=file]').setInputFiles({ name: 'large-preset.json', buffer, mimeType: 'application/json' })
+    await review.getByRole('button', { name: 'Review', exact: true }).click()
+    const save = review.getByRole('button', { name: 'Save as strategy', exact: true })
+    await expect(save).toBeEnabled({ timeout: 30_000 })
+    expect((await read()).revision).toBe(baseline.revision)
+    await save.click()
+    await expect(page.getByRole('listitem').filter({ hasText: name })).toBeVisible({ timeout: 30_000 })
+    const imported = await read()
+    expect(imported.references).toEqual(baseline.references)
+    expect(imported.catalog.lists[listID].entries).toEqual(entries)
+    const id = Object.keys(imported.catalog.records).find(key => imported.catalog.records[key].name === name)!
+    const deleted = await write({ action: 'delete', id }, imported.revision)
+    expect((await write({ action: 'delete-list', id: listID }, deleted.revision)).revision).toBe(baseline.revision)
+  })
 }
