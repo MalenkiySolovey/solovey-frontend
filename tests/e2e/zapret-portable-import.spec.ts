@@ -138,6 +138,51 @@ for (const layout of ['classic', 'nexus']) {
     expect(state.revision).toBe(baseline.revision)
   })
 
+  test(`${layout}: edits a nested native template without rewriting the source`, async ({ page }, info) => {
+    await page.setViewportSize({ width: layout === 'nexus' ? 390 : 1280, height: 900 })
+    await page.addInitScript(value => window.localStorage.setItem('sui:ui:mode', value), layout)
+    await login(page)
+    await enableComponent(page, 'zapret')
+    await page.goto('zapret')
+    const read = async () => {
+      const reply = await (await page.request.get(catalog)).json()
+      expect(reply.success, reply.msg).toBe(true)
+      return reply.obj
+    }
+    const baseline = await read()
+    const raw = '--template=scope --filter-tcp=18080 --filter-l3=ipv4\n' +
+      '--new --template=web --import=scope --filter-l7=http --payload=http_req --lua-desync=multisplit:pos=9\n' +
+      '--new=active --import=web\n'
+    const name = `${layout}-native-template`
+    await reviewZapretFile(page, `${name}.txt`, Buffer.from(raw), 'text/plain')
+    const imported = await read()
+    const id = Object.keys(imported.catalog.records).find(key => imported.catalog.records[key].name === name)!
+    expect(imported.nativeOnly).toContain(id)
+    expect(imported.catalog.records[id]).toMatchObject({ raw, definition: { profiles: [{ id: 'active', ports: [18080] }] } })
+    const row = page.getByRole('listitem').filter({ has: page.getByText(name, { exact: true }) })
+    await row.getByRole('button', { name: 'Edit strategy' }).click()
+    const editor = page.getByTestId('zapret-strategy-editor')
+    const source = editor.getByRole('textbox', { name: 'Native options', exact: true })
+    await expect(source).toHaveValue(raw)
+    const updated = raw.replace('pos=9', 'pos=17')
+    await source.fill(updated)
+    await editor.getByRole('button', { name: 'Validate', exact: true }).click()
+    await expect(editor.getByText('Validated native preview', { exact: true })).toBeVisible()
+    expect((await read()).revision).toBe(imported.revision)
+    expect(await editor.evaluate(element => element.scrollWidth)).toBeLessThanOrEqual(layout === 'nexus' ? 390 : 1280)
+    await page.screenshot({ path: info.outputPath(`${layout}-native-template.png`) })
+    await editor.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(row).toBeVisible()
+    const edited = await read()
+    expect(edited.catalog.records[id].raw).toBe(updated)
+    expect(edited.catalog.records[id].definition.profiles).toMatchObject([{ id: 'active', ports: [18080] }])
+    expect(edited.references).toEqual(baseline.references)
+    const removed = await (await page.request.post(catalog, { headers: mutationHeaders(await csrfToken(page)),
+      data: { action: 'delete', id, expectedRevision: edited.revision } })).json()
+    expect(removed.success, removed.msg).toBe(true)
+    expect(removed.obj.revision).toBe(baseline.revision)
+  })
+
   test(`${layout}: reviews and saves a large portable list without applying it`, async ({ page }) => {
     test.setTimeout(90_000)
     await page.setViewportSize({ width: layout === 'nexus' ? 390 : 1280, height: 900 })
