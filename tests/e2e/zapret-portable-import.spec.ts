@@ -140,26 +140,18 @@ for (const layout of ['classic', 'nexus']) {
       return reply.obj
     }
     const baseline = await read()
-    const listID = `${layout}-large-portable-hosts`
+    const listID = 'large-portable-hosts'
     const name = `${layout} large portable preset`
     const entries = Array.from({ length: 9000 }, (_, i) => `h${String(i).padStart(5, '0')}.portable-fixture.example.test`)
-    const listed = await write({ action: 'create-list', id: listID, list: { kind: 'hostList', entries } }, baseline.revision)
-    const seeded = await write({ action: 'create', draft: {
-      name, raw: '--name=portable\n--filter-tcp=18080\n', listRefs: { portable: { hostList: listID } },
-    } }, listed.revision)
-    const seed = Object.keys(seeded.catalog.records).find(id => seeded.catalog.records[id].name === name)!
-    const transfer = await (await page.request.get(`${catalog}/${seed}/export?expectedRevision=${seeded.revision}`)).json()
-    expect(transfer.success, transfer.msg).toBe(true)
-    const buffer = Buffer.from(JSON.stringify(transfer.obj))
+    // Supply the actual portable ZIP, independently of the structured list editor's request budget.
+    const buffer = await fs.readFile(path.join(frontendRoot, 'tests/e2e/fixtures/zapret-large-portable.zip'))
     expect(buffer.length).toBeGreaterThan(256 * 1024)
     expect(buffer.length).toBeLessThanOrEqual(baseline.presetTransferLimit)
-    const removed = await write({ action: 'delete', id: seed }, seeded.revision)
-    expect((await write({ action: 'delete-list', id: listID }, removed.revision)).revision).toBe(baseline.revision)
 
-    await page.reload()
     await page.getByRole('button', { name: 'Import', exact: true }).click()
     const review = page.getByRole('dialog')
-    await review.locator('input[type=file]').setInputFiles({ name: 'large-preset.json', buffer, mimeType: 'application/json' })
+    await review.getByRole('textbox', { name: 'Strategy name (optional)' }).fill(name)
+    await review.locator('input[type=file]').setInputFiles({ name: 'large-preset.zip', buffer, mimeType: 'application/zip' })
     await review.getByRole('button', { name: 'Review', exact: true }).click()
     const save = review.getByRole('button', { name: 'Save as strategy', exact: true })
     await expect(save).toBeEnabled({ timeout: 30_000 })
@@ -170,6 +162,7 @@ for (const layout of ['classic', 'nexus']) {
     expect(imported.references).toEqual(baseline.references)
     expect(imported.catalog.lists[listID].entries).toEqual(entries)
     const id = Object.keys(imported.catalog.records).find(key => imported.catalog.records[key].name === name)!
+    expect(imported.catalog.records[id].listRefs).toEqual({ portable: { hostList: listID } })
     const deleted = await write({ action: 'delete', id }, imported.revision)
     expect((await write({ action: 'delete-list', id: listID }, deleted.revision)).revision).toBe(baseline.revision)
   })
