@@ -57,14 +57,32 @@ for (const layout of ['classic', 'nexus']) {
     await expect(udp).toHaveValue('18443,18445-18590')
     await editor.getByRole('button', { name: 'Strategies', exact: true }).click()
 
+    const nativeName = `${layout}-native-port-terms`
+    const nativeText = '--name=dual\n--filter-tcp=~18080\n--filter-udp=*\n'
+    await reviewZapretFile(page, `${nativeName}.txt`, Buffer.from(nativeText), 'text/plain')
+    await row(nativeName).getByRole('button', { name: 'Edit strategy' }).click()
+    await expect(editor.getByRole('textbox', { name: 'Native options', exact: true })).toHaveValue(nativeText)
+    await expect(tcp).toHaveCount(0)
+    await editor.getByRole('button', { name: 'Validate', exact: true }).click()
+    await expect(editor.getByText('Validated native preview', { exact: true })).toBeVisible()
+    const withNative = await read()
+    const [nativeID, native] = find(withNative, nativeName)
+    expect(withNative.nativeOnly).toContain(nativeID)
+    expect(native.raw).toBe(nativeText)
+    expect(native.definition.profiles).toHaveLength(1)
+    expect(native.definition.profiles[0]).toMatchObject({ id: 'dual', ports: null,
+      portRanges: [{ first: 1, last: 18079 }, { first: 18081, last: 65535 }],
+      udpPortRanges: [{ first: 1, last: 65535 }] })
+    await editor.getByRole('button', { name: 'Strategies', exact: true }).click()
+
     // Authored v1 portable archive with a standalone documentation-network IP set.
     const file = await fs.readFile(path.join(frontendRoot, 'tests/e2e/fixtures/zapret-portable-v1.zip'))
     const owned = 'portable-wire'
     const alternate = `imported-wire-${layout}`
-    const seedOwned = !current.catalog.lists?.[owned]
-    let state = seedOwned ? await write({ action: 'create-list', id: owned, expectedRevision: current.revision,
+    const seedOwned = !withNative.catalog.lists?.[owned]
+    let state = seedOwned ? await write({ action: 'create-list', id: owned, expectedRevision: withNative.revision,
       list: { kind: 'ipSet', entries: ['192.0.2.19/32'] } })
-      : current
+      : withNative
     const refreshed = page.waitForResponse(response => response.request().method() === 'GET' && new URL(response.url()).pathname.endsWith(`/${catalog}`))
     await page.getByRole('button', { name: 'Refresh', exact: true }).click()
     expect((await (await refreshed).json()).obj.revision).toBe(state.revision)
@@ -113,7 +131,7 @@ for (const layout of ['classic', 'nexus']) {
     expect(edited.definition.profiles[0]).toMatchObject({ ports: [18080], udpPorts: [18443] })
     expect(state.references).toEqual(baseline.references)
 
-    for (const [action, id] of [['delete', importedID], ['delete', plainID], ['delete-list', alternate]]) {
+    for (const [action, id] of [['delete', importedID], ['delete', plainID], ['delete', nativeID], ['delete-list', alternate]]) {
       state = await write({ action, id, expectedRevision: state.revision })
     }
     if (seedOwned) state = await write({ action: 'delete-list', id: owned, expectedRevision: state.revision })
